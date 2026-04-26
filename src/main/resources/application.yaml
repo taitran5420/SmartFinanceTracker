@@ -1,6 +1,8 @@
 spring:
   application:
     name: smartfinancetracker
+  config:
+    import: optional:file:.env[.properties]
 
   datasource:
     url: ${DB_URL}
@@ -14,3 +16,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+springdoc:
+  api-docs:
+    path: /openapi.json
+
+scalar:
+  url: /openapi.json
+  path: /docs
+  enabled: true
