@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Security: Ignore environment variables files to prevent leaking sensitive credentials
+.env
+.env.local
+.env.*.local
+
+# If you use Docker, ignore these as well
+*.env
