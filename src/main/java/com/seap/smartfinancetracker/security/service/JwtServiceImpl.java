@@ -1,9 +1,7 @@
 package com.seap.smartfinancetracker.security.service;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,8 +22,6 @@ public class JwtServiceImpl implements JwtService {
 
     @Value("${jwt.expiration}")
     private long jwtExpirationInMs;
-
-    private final static SignatureAlgorithm SIGNATURE_ALGORITHM = SignatureAlgorithm.HS256;
 
     @Override
     public String extractUsername(String token) {
@@ -69,27 +65,20 @@ public class JwtServiceImpl implements JwtService {
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return Jwts.builder()
-                .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
-                .signWith(getSecretKey(), SIGNATURE_ALGORITHM)
+                .claims(extraClaims)
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
+                .signWith(getSecretKey(), Jwts.SIG.HS256)
                 .compact();
     }
 
     private Claims getClaimsFromToken(String token) {
-        Jws<Claims> jws = Jwts.parserBuilder()
-                .setSigningKey(getSecretKey())
+        return Jwts.parser()
+                .verifyWith(getSecretKey())
                 .build()
-                .parseClaimsJws(token);
-
-        String alg = jws.getHeader().getAlgorithm();
-
-        if (alg.equals(SIGNATURE_ALGORITHM.name())) {
-            return jws.getBody();
-        }
-
-        throw new IllegalArgumentException("Invalid JWT Token");
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     private SecretKey getSecretKey() {
