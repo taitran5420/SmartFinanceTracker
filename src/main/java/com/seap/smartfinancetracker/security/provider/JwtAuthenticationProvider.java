@@ -3,8 +3,8 @@ package com.seap.smartfinancetracker.security.provider;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.security.token.JwtAuthenticationToken;
 import io.jsonwebtoken.JwtException;
+import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -27,7 +27,7 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
     }
 
     @Override
-    public @Nullable Authentication authenticate(Authentication authentication) throws AuthenticationException {
+    public @Nullable Authentication authenticate(@NonNull Authentication authentication) throws AuthenticationException {
 
         if (!(authentication instanceof JwtAuthenticationToken jwtAuthenticationToken)) {
             throw new AuthenticationServiceException("Unsupported authentication type");
@@ -56,7 +56,7 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
     }
 
     @Override
-    public boolean supports(Class<?> authentication) {
+    public boolean supports(@NonNull Class<?> authentication) {
         return JwtAuthenticationToken.class.isAssignableFrom(authentication);
     }
 }
