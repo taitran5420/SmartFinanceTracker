@@ -20,15 +20,18 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+server:
+  servlet:
+    context-path: /api
+
 springdoc:
   api-docs:
     path: /openapi.json
 
 scalar:
-  url: /openapi.json
   path: /docs
-  enabled: true
-  
+  theme: blue_planet
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION}
