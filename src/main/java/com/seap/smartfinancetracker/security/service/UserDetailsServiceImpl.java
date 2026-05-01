@@ -1,6 +1,6 @@
 package com.seap.smartfinancetracker.security.service;
 
-import com.seap.smartfinancetracker.security.mapper.UserDetailsMapper;
+import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.user.entity.User;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
@@ -21,6 +21,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException(email));
 
-        return UserDetailsMapper.toUserDetails(user);
+        return UserPrincipalMapper.toUserPrincipal(user);
     }
 }

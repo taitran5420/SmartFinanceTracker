@@ -3,7 +3,7 @@ package com.seap.smartfinancetracker.auth.service;
 import com.seap.smartfinancetracker.auth.dto.AuthResponse;
 import com.seap.smartfinancetracker.auth.dto.LoginRequest;
 import com.seap.smartfinancetracker.auth.dto.RegisterRequest;
-import com.seap.smartfinancetracker.security.mapper.UserDetailsMapper;
+import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.user.entity.User;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         return AuthResponse.builder()
-                .token(jwtService.generateToken(UserDetailsMapper.toUserDetails(user)))
+                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(user)))
                 .expiresIn(jwtService.getExpirationTime())
                 .build();
     }
@@ -53,7 +53,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid email or password."));
 
         return AuthResponse.builder()
-                .token(jwtService.generateToken(UserDetailsMapper.toUserDetails(user)))
+                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(user)))
                 .expiresIn(jwtService.getExpirationTime())
                 .build();
     }

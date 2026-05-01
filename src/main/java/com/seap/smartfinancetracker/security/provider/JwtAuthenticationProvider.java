@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.security.provider;
 
+import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.security.token.JwtAuthenticationToken;
 import io.jsonwebtoken.JwtException;
@@ -10,7 +11,6 @@ import org.springframework.security.authentication.AuthenticationServiceExceptio
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
@@ -42,13 +42,13 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
                 throw new BadCredentialsException("Invalid JWT: No subject found");
             }
 
-            UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+            UserPrincipal userPrincipal = (UserPrincipal) userDetailsService.loadUserByUsername(email);
 
-            if (!jwtService.validateToken(rawToken, userDetails)) {
+            if (!jwtService.validateToken(rawToken, userPrincipal)) {
                 throw new BadCredentialsException("Invalid or expired JWT token");
             }
 
-            return new JwtAuthenticationToken(userDetails, rawToken, userDetails.getAuthorities());
+            return new JwtAuthenticationToken(userPrincipal, rawToken, userPrincipal.getAuthorities());
 
         } catch (UsernameNotFoundException | JwtException ex) {
             throw new BadCredentialsException("Invalid JWT token");

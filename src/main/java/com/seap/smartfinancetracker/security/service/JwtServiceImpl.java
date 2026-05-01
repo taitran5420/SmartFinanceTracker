@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.security.service;
 
+import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -35,19 +36,19 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
-    public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+    public String generateToken(UserPrincipal userPrincipal) {
+        return generateToken(new HashMap<>(), userPrincipal);
     }
 
     @Override
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
-        return buildToken(extraClaims, userDetails);
+    public String generateToken(Map<String, Object> extraClaims, UserPrincipal userPrincipal) {
+        return buildToken(extraClaims, userPrincipal);
     }
 
     @Override
-    public boolean validateToken(String token, UserDetails userDetails) {
+    public boolean validateToken(String token, UserPrincipal userPrincipal) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !validateExpirationToken(token));
+        return (username.equals(userPrincipal.getUsername()) && !validateExpirationToken(token));
     }
 
     @Override
@@ -63,10 +64,13 @@ public class JwtServiceImpl implements JwtService {
         return extractClaim(token, Claims::getExpiration);
     }
 
-    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+    private String buildToken(Map<String, Object> extraClaims, UserPrincipal userPrincipal) {
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        claims.put("id", userPrincipal.getId().toString());
+
         return Jwts.builder()
-                .claims(extraClaims)
-                .subject(userDetails.getUsername())
+                .claims(claims)
+                .subject(userPrincipal.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationInMs))
                 .signWith(getSecretKey(), Jwts.SIG.HS256)
