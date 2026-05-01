@@ -2,8 +2,7 @@ package com.seap.smartfinancetracker.user.entity;
 
 import com.seap.smartfinancetracker.user.enums.Role;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,6 +10,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "users")
 @Getter @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

@@ -3,6 +3,7 @@ package com.seap.smartfinancetracker.category.mapper;
 import com.seap.smartfinancetracker.category.dto.CategoryCreateRequest;
 import com.seap.smartfinancetracker.category.dto.CategoryResponse;
 import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.user.entity.User;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -14,7 +15,7 @@ public class CategoryMapper {
             return null;
         }
         return Category.builder()
-                .id(userId)
+                .user(User.builder().id(userId).build())
                 .categoryName(categoryRequest.categoryName())
                 .transactionType(categoryRequest.transactionType())
                 .active(true)
