@@ -2,7 +2,6 @@ package com.seap.smartfinancetracker.security.service;
 
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import io.jsonwebtoken.Claims;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Map;
 import java.util.function.Function;
