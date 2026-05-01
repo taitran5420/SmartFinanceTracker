@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @AllArgsConstructor
@@ -32,13 +33,27 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    public CategoryResponse getCategoryById(UUID userId, UUID categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
+
+        boolean isDefault = category.getUser() == null;
+        boolean isOwner = !isDefault && category.getUser().getId().equals(userId);
+
+        if (!isDefault && !isOwner) {
+            throw new IllegalArgumentException("You do not have permission to access this category!");
+        }
+
+        return categoryMapper.toResponse(category);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<CategoryResponse> getAllCategoriesForUser(UUID userId) {
         List<Category> userCategories = categoryRepository.findByUserId(userId);
         List<Category> defaultCategories = categoryRepository.findByUserIdIsNull();
 
-        userCategories.addAll(defaultCategories);
-
-        return userCategories.stream()
+        return Stream.concat(userCategories.stream(), defaultCategories.stream())
                 .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -46,7 +61,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse updateCategory(UUID userId, UUID categoryId, CategoryUpdateRequest categoryUpdateRequest) {
-        Category existingCategory = categoryRepository.findByIdAndUserId(userId, categoryId)
+        Category existingCategory = categoryRepository.findByIdAndUserId(categoryId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
 
         existingCategory.setCategoryName(categoryUpdateRequest.categoryName());
@@ -56,7 +71,12 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Transactional
     public void deactivateCategory(UUID userId, UUID categoryId) {
-        // TODO
+        Category existingCategory = categoryRepository.findByIdAndUserId(categoryId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
+
+        existingCategory.setActive(false);
+        categoryRepository.save(existingCategory);
     }
 }

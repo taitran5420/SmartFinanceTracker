@@ -10,6 +10,8 @@ import java.util.UUID;
 public interface CategoryService {
     CategoryResponse createCategory(UUID userId, CategoryCreateRequest category);
 
+    CategoryResponse getCategoryById(UUID userId, UUID categoryId);
+
     List<CategoryResponse> getAllCategoriesForUser(UUID userId);
 
     CategoryResponse updateCategory(UUID userId, UUID categoryId, CategoryUpdateRequest category);
