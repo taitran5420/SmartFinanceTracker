@@ -12,4 +12,4 @@ public record CategoryCreateRequest(
 
     @NotNull(message = "Transaction type is required")
     TransactionType transactionType
-) implements Serializable { }
+) { }

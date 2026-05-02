@@ -12,4 +12,4 @@ public record CategoryResponse(
         String categoryName,
         TransactionType transactionType,
         boolean active
-) implements Serializable { }
+) { }

@@ -7,4 +7,4 @@ import java.io.Serializable;
 public record CategoryUpdateRequest(
         @NotBlank(message = "Category name cannot be blank")
         String categoryName
-) implements Serializable { }
+) { }
