@@ -4,8 +4,8 @@ import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+import org.hibernate.annotations.SQLDelete;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,6 +18,9 @@ import java.util.UUID;
         @Index(name = "idx_transaction_user_created", columnList = "user_id, created_at")
 })
 @Getter @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Transaction {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -31,7 +34,7 @@ public class Transaction {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @Column(nullable = false, precision = 19, scale = 4, updatable = false)
+    @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
@@ -49,4 +52,7 @@ public class Transaction {
 
     @Column(name = "over_budget")
     private boolean overBudget;
+
+    @Column(nullable = false)
+    private boolean active = true;
 }

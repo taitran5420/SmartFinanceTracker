@@ -31,5 +31,5 @@ public class Category {
     private User user;
 
     @Column(nullable = false)
-    private boolean active;
+    private boolean active = true;
 }

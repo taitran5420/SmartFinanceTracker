@@ -22,6 +22,7 @@ CREATE TABLE transactions
     idempotency_key  UUID UNIQUE,
     created_at       TIMESTAMP WITH TIME ZONE NOT NULL,
     over_budget      BOOLEAN                  NOT NULL,
+    active           BOOLEAN      NOT NULL,
     CONSTRAINT fk_transactions_user_id FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_transactions_category_id FOREIGN KEY (category_id) REFERENCES categories (id)
 );
@@ -36,11 +37,6 @@ CREATE OR REPLACE FUNCTION prevent_transaction_updates()
         -- Check if user_id is being updated
         IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
             RAISE EXCEPTION ''Updating user_id is strictly prohibited'';
-        END IF;
-
-        -- Check if amount is being updated
-        IF NEW.amount IS DISTINCT FROM OLD.amount THEN
-            RAISE EXCEPTION ''Updating amount is strictly prohibited'';
         END IF;
 
         -- Check if transaction_type is being updated
