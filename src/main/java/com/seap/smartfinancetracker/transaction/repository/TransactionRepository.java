@@ -1,8 +1,6 @@
 package com.seap.smartfinancetracker.transaction.repository;
 
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
