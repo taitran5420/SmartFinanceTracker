@@ -31,6 +31,7 @@ public class CategoryMapper {
                 .id(category.getId())
                 .categoryName(category.getCategoryName())
                 .transactionType(category.getTransactionType())
+                .createdAt(category.getCreatedAt())
                 .active(category.isActive())
                 .build();
     }

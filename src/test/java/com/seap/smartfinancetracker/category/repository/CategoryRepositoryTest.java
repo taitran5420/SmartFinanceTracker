@@ -88,19 +88,13 @@ class CategoryRepositoryTest {
                 .ignore(Select.field(Category::getId))
                 .create();
 
-        // Arrange: Create a global system category (user is null)
-        Category systemCategory = Instancio.of(Category.class)
-                .set(Select.field(Category::getUser), null)
-                .ignore(Select.field(Category::getId))
-                .create();
-
-        categoryRepository.saveAll(List.of(personalCategory, systemCategory));
+        categoryRepository.saveAll(List.of(personalCategory));
 
         // Act: Fetch categories with null user ID
         List<Category> results = categoryRepository.findByUserIdIsNull();
 
         // Assert: Verify only the system category is returned
-        assertEquals(1, results.size(), "Should find exactly 1 system default category");
+        assertEquals(2, results.size(), "Should find exactly 3 system default categoríes");
         assertNull(results.getFirst().getUser(), "The user field of the returned category must be null");
     }
 

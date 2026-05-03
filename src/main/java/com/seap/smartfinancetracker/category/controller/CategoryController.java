@@ -50,7 +50,7 @@ public class CategoryController {
     }
 
     @DeleteMapping("/{categoryId}")
-    public ResponseEntity<CategoryResponse> deactivateCategory(
+    public ResponseEntity<Void> deactivateCategory(
             @CurrentUserId UUID userId,
             @PathVariable UUID categoryId) {
         categoryService.deactivateCategory(userId, categoryId);
