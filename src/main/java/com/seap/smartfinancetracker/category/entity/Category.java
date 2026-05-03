@@ -5,6 +5,7 @@ import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -32,4 +33,8 @@ public class Category {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Builder.Default
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
 }

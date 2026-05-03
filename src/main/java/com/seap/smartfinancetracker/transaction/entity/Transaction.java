@@ -46,6 +46,7 @@ public class Transaction {
     @Column(name = "idempotency_key", unique = true, updatable = false)
     private UUID idempotencyKey;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt =  Instant.now();
 
