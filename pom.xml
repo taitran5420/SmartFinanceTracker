@@ -132,6 +132,11 @@
 			<version>1.21.3</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.datafaker</groupId>
+			<artifactId>datafaker</artifactId>
+			<version>2.5.4</version>
+		</dependency>
     </dependencies>
 
 	<build>
