@@ -1,6 +1,7 @@
 package com.seap.smartfinancetracker.category.repository;
 
 import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.user.entity.User;
 import org.instancio.Instancio;
 import org.instancio.Select;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class CategoryRepositoryTest {
 
+    //<editor-fold desc="Setup & Configurations">
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
@@ -36,7 +38,9 @@ class CategoryRepositoryTest {
 
     @Autowired
     private  CategoryRepository categoryRepository;
+    //</editor-fold>
 
+    //<editor-fold desc="Test findByUserId">
     @Test
     @DisplayName("Should return categories strictly belonging to the given user ID")
     void findByUserId_ShouldReturnOnlyUserCategories() {
@@ -72,7 +76,9 @@ class CategoryRepositoryTest {
         assertEquals(1, results.size(), "Should find exactly 1 category for the target user");
         assertEquals(targetUser.getId(), results.getFirst().getUser().getId(), "Returned category must belong to the target user");
     }
+    //</editor-fold>
 
+    //<editor-fold desc="Test findByUserIdIsNull">
     @Test
     @DisplayName("Should return default/system categories where user ID is null")
     void findByUserIdIsNull_ShouldReturnSystemDefaultCategories() {
@@ -97,7 +103,9 @@ class CategoryRepositoryTest {
         assertEquals(2, results.size(), "Should find exactly 3 system default categoríes");
         assertNull(results.getFirst().getUser(), "The user field of the returned category must be null");
     }
+    //</editor-fold>
 
+    //<editor-fold desc="Test findByIdAndUserId">
     @Test
     @DisplayName("Should return the category when both Category ID and User ID match securely")
     void findByIdAndUserId_ShouldReturnCategory_WhenOwnedByGivenUser() {
@@ -153,4 +161,52 @@ class CategoryRepositoryTest {
         // Assert: The result must be empty to prevent unauthorized access
         assertTrue(result.isEmpty(), "Category should NOT be found when requested by a different user");
     }
+    //</editor-fold>
+
+    //<editor-fold desc="Test findByIdAndUserIdIsNull">
+    @Test
+    @DisplayName("Should return the system default category matching the exact transaction type")
+    void findFirstByUserIdIsNullAndTransactionType_ShouldReturnSystemCategory() {
+        // Act: Attempt to fetch the default INCOME category (pre-created via Flyway V2.1)
+        Optional<Category> incomeResult = categoryRepository.findFirstByUserIdIsNullAndTransactionType(TransactionType.INCOME);
+
+        // Act: Attempt to fetch the default EXPENSE category
+        Optional<Category> expenseResult = categoryRepository.findFirstByUserIdIsNullAndTransactionType(TransactionType.EXPENSE);
+
+        // Assert for INCOME
+        assertTrue(incomeResult.isPresent(), "Should find a default INCOME category");
+        assertNull(incomeResult.get().getUser(), "User must be null for system default category");
+        assertEquals(TransactionType.INCOME, incomeResult.get().getTransactionType(), "Type must be INCOME");
+
+        // Assert for EXPENSE
+        assertTrue(expenseResult.isPresent(), "Should find a default EXPENSE category");
+        assertNull(expenseResult.get().getUser(), "User must be null for system default category");
+        assertEquals(TransactionType.EXPENSE, expenseResult.get().getTransactionType(), "Type must be EXPENSE");
+    }
+
+    @Test
+    @DisplayName("Should strictly ignore user-owned categories and only return system defaults")
+    void findFirstByUserIdIsNullAndTransactionType_ShouldIgnoreUserOwnedCategories() {
+        // Arrange: Create a user and a user-owned category (with INCOME type)
+        User user = Instancio.of(User.class)
+                .ignore(Select.field(User::getId))
+                .create();
+        user = entityManager.persistAndFlush(user);
+
+        Category userPersonalCategory = Instancio.of(Category.class)
+                .set(Select.field(Category::getUser), user)
+                .set(Select.field(Category::getTransactionType), TransactionType.INCOME)
+                .ignore(Select.field(Category::getId))
+                .create();
+        categoryRepository.save(userPersonalCategory);
+
+        // Act: Call the method to fetch the system default category
+        Optional<Category> result = categoryRepository.findFirstByUserIdIsNullAndTransactionType(TransactionType.INCOME);
+
+        // Assert: The result must be a system category (User = null); it should not mistakenly return the user's newly created category
+        assertTrue(result.isPresent(), "System category should still exist");
+        assertNull(result.get().getUser(), "Must return the system default category (User is null)");
+        assertNotEquals(userPersonalCategory.getId(), result.get().getId(), "Must not return the newly created user category");
+    }
+    //</editor-fold>
 }

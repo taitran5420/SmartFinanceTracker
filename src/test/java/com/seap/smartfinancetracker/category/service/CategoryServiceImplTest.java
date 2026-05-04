@@ -27,6 +27,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @ActiveProfiles("test")
 class CategoryServiceImplTest {
+
+    //<editor-fold desc="Setup & Configurations">
     @Mock
     private CategoryRepository categoryRepository;
 
@@ -35,7 +37,9 @@ class CategoryServiceImplTest {
 
     @InjectMocks
     private CategoryServiceImpl categoryService;
+    //</editor-fold>
 
+    //<editor-fold desc="Test createCategory">
     @Test
     @DisplayName("Should successfully create a new category")
     void createCategory_ShouldReturnCategoryResponse() {
@@ -61,7 +65,9 @@ class CategoryServiceImplTest {
         // Verify that the repository's save method was called exactly once
         verify(categoryRepository, times(1)).save(mappedEntity);
     }
+    //</editor-fold>
 
+    //<editor-fold desc="Test getAllCategoriesForUser">
     @Test
     @DisplayName("Should return all user-specific and default categories")
     void getAllCategoriesForUser_ShouldReturnCombinedList() {
@@ -89,7 +95,9 @@ class CategoryServiceImplTest {
         assertTrue(results.contains(userResponse));
         assertTrue(results.contains(defaultResponse));
     }
+    //</editor-fold>
 
+    //<editor-fold desc="Test updateCategory">
     @Test
     @DisplayName("Should successfully update an existing category")
     void updateCategory_ShouldUpdateAndReturnResponse_WhenCategoryExists() {
@@ -136,7 +144,9 @@ class CategoryServiceImplTest {
         assertEquals("Category Not Found!", exception.getMessage());
         verify(categoryRepository, never()).save(any(Category.class));
     }
+    //</editor-fold>
 
+    //<editor-fold desc="Test deactivateCategory">
     @Test
     @DisplayName("Should successfully deactivate a category")
     void deactivateCategory_ShouldSetActiveToFalse_WhenCategoryExists() {
@@ -176,4 +186,5 @@ class CategoryServiceImplTest {
 
         verify(categoryRepository, never()).save(any(Category.class));
     }
+    //</editor-fold>
 }
