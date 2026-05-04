@@ -1,10 +1,7 @@
 package com.seap.smartfinancetracker.transaction.controller;
 
 import com.seap.smartfinancetracker.security.annotation.CurrentUserId;
-import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionFilterRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionResponse;
-import com.seap.smartfinancetracker.transaction.dto.TransactionUpdateRequest;
+import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -72,5 +69,11 @@ public class TransactionController {
     ) {
         transactionService.deleteTransaction(userId, transactionId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/balance")
+    public ResponseEntity<BalanceResponse> getBalance(@CurrentUserId  UUID userId) {
+        BalanceResponse balanceResponse =  transactionService.getBalanceByUserId(userId);
+        return ResponseEntity.ok(balanceResponse);
     }
 }

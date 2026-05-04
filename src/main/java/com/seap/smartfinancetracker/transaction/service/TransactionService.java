@@ -1,9 +1,6 @@
 package com.seap.smartfinancetracker.transaction.service;
 
-import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionFilterRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionResponse;
-import com.seap.smartfinancetracker.transaction.dto.TransactionUpdateRequest;
+import com.seap.smartfinancetracker.transaction.dto.*;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 
@@ -19,4 +16,6 @@ public interface TransactionService {
     TransactionResponse updateTransaction(UUID userId, UUID transactionId, TransactionUpdateRequest transactionUpdateRequest);
 
     void deleteTransaction(UUID userId, UUID transactionId);
+
+    BalanceResponse getBalanceByUserId(UUID userId);
 }

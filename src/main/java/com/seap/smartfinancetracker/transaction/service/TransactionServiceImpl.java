@@ -2,10 +2,7 @@ package com.seap.smartfinancetracker.transaction.service;
 
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
-import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionFilterRequest;
-import com.seap.smartfinancetracker.transaction.dto.TransactionResponse;
-import com.seap.smartfinancetracker.transaction.dto.TransactionUpdateRequest;
+import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.transaction.mapper.TransactionMapper;
@@ -19,6 +16,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Slf4j
@@ -142,6 +140,21 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setActive(false);
         transactionRepository.save(transaction);
         log.info("Transaction {} is deactivated", transactionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BalanceResponse getBalanceByUserId(UUID userId) {
+        BigDecimal totalIncome = transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.INCOME);
+        BigDecimal totalExpense =  transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.EXPENSE);
+
+        BigDecimal currentBalance = totalIncome.subtract(totalExpense);
+
+        return BalanceResponse.builder()
+                .totalIncome(totalIncome)
+                .totalExpense(totalExpense)
+                .currentBalance(currentBalance)
+                .build();
     }
 
     private boolean isNotCategoryOwner(UUID userId, Category category) {
