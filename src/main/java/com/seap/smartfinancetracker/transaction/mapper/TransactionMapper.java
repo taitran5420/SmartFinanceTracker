@@ -40,7 +40,6 @@ public class TransactionMapper {
                 .note(transaction.getNote())
                 .active(transaction.isActive())
                 .createdAt(transaction.getCreatedAt())
-                .overBudget(transaction.isOverBudget())
                 .build();
     }
 }

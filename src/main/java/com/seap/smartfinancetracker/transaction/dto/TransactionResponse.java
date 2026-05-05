@@ -15,6 +15,5 @@ public record TransactionResponse(
         TransactionType transactionType,
         String note,
         Instant createdAt,
-        boolean overBudget,
         boolean active
 ) { }

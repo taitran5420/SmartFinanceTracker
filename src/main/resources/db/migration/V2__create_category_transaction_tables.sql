@@ -22,7 +22,6 @@ CREATE TABLE transactions
     note             TEXT,
     idempotency_key  UUID UNIQUE,
     created_at       TIMESTAMP WITH TIME ZONE NOT NULL,
-    over_budget      BOOLEAN                  NOT NULL,
     active           BOOLEAN      NOT NULL,
     CONSTRAINT fk_transactions_user_id FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_transactions_category_id FOREIGN KEY (category_id) REFERENCES categories (id)

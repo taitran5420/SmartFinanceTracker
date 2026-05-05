@@ -50,9 +50,6 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt =  Instant.now();
 
-    @Column(name = "over_budget")
-    private boolean overBudget;
-
     @Column(nullable = false)
     private boolean active = true;
 }

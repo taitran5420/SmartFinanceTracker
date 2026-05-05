@@ -75,7 +75,6 @@ public class DatabaseSeeder implements CommandLineRunner {
                 Transaction tx = new Transaction();
                 tx.setUser(testUser); // Attach the test user
                 tx.setActive(true);
-                tx.setOverBudget(false);
                 tx.setIdempotencyKey(UUID.randomUUID());
 
                 // Randomize date within the last 60 days
