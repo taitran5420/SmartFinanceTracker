@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -75,6 +76,16 @@ class TransactionServiceImplTest {
         UUID userId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
         TransactionType type = TransactionType.EXPENSE;
+
+        Mockito.when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
+                Mockito.any(UUID.class),
+                Mockito.eq(TransactionType.INCOME)
+        )).thenReturn(BigDecimal.valueOf(50000));
+
+        Mockito.when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
+                Mockito.any(UUID.class),
+                Mockito.eq(TransactionType.EXPENSE)
+        )).thenReturn(BigDecimal.ZERO);
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
                 .set(Select.field("categoryId"), categoryId)

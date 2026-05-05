@@ -216,8 +216,8 @@ class TransactionRepositoryTest {
                 owner.getId(), TransactionType.EXPENSE
         );
 
-        // Assert: COALESCE(SUM(t.amount)) without a fallback parameter usually returns null in standard JPQL if no rows match, but returning null here is expected if the sum is completely empty.
-        assertNull(result, "Should return null if there are no transactions matching the user and type");
+        // Assert: COALESCE(SUM(t.amount), 0) without a fallback parameter usually returns null in standard JPQL if no rows match, but returning null here is expected if the sum is completely empty.
+        assertEquals(BigDecimal.valueOf(0.0), result,"Should return 0 if there are no transactions matching the user and type");
     }
     //</editor-fold>
 }

@@ -18,7 +18,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     boolean existsByIdempotencyKey(UUID idempotencyKey);
 
-    @Query("SELECT COALESCE(SUM(t.amount)) FROM Transaction t " +
+    @Query("SELECT COALESCE(SUM(t.amount), 0.0) FROM Transaction t " +
             "WHERE t.user.id = :userId " +
             "AND t.transactionType = :transactionType " +
             "AND t.active = true")

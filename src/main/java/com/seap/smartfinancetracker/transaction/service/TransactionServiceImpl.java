@@ -28,6 +28,7 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionMapper transactionMapper;
 
+    private static final BigDecimal OVERDRAFT_LIMIT = new BigDecimal("-1000");
 
     @Override
     @Transactional
@@ -70,6 +71,10 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest);
         transaction.setCategory(category);
         transaction.setTransactionType(finalTransactionType);
+
+        if (finalTransactionType == TransactionType.EXPENSE) {
+            validateOverdraftLimit(userId, transaction.getAmount());
+        }
 
         Transaction savedTransaction = transactionRepository.save(transaction);
         return transactionMapper.toResponse(savedTransaction);
@@ -145,16 +150,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional(readOnly = true)
     public BalanceResponse getBalanceByUserId(UUID userId) {
-        BigDecimal totalIncome = transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.INCOME);
-        BigDecimal totalExpense =  transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.EXPENSE);
-
-        BigDecimal currentBalance = totalIncome.subtract(totalExpense);
-
-        return BalanceResponse.builder()
-                .totalIncome(totalIncome)
-                .totalExpense(totalExpense)
-                .currentBalance(currentBalance)
-                .build();
+        return getBalanceResponseByUserId(userId);
     }
 
     private boolean isNotCategoryOwner(UUID userId, Category category) {
@@ -168,5 +164,29 @@ public class TransactionServiceImpl implements TransactionService {
     private Transaction getTransactionByUserIdAndTransactionId(UUID userId, UUID transactionId) {
         return transactionRepository.findByIdAndUserId(transactionId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found!"));
+    }
+
+    private BalanceResponse getBalanceResponseByUserId(UUID userId) {
+        BigDecimal totalIncome = transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.INCOME);
+        BigDecimal totalExpense =  transactionRepository.calculateTotalAmountByUserIdAndTransactionType(userId, TransactionType.EXPENSE);
+
+        BigDecimal currentBalance = totalIncome.subtract(totalExpense);
+
+        return BalanceResponse.builder()
+                .totalIncome(totalIncome)
+                .totalExpense(totalExpense)
+                .currentBalance(currentBalance)
+                .build();
+    }
+
+    private void validateOverdraftLimit(UUID userId, BigDecimal expenseAmount) {
+        BigDecimal currentBalance = getBalanceResponseByUserId(userId).currentBalance();
+
+        BigDecimal hypotheticalBalance = currentBalance.subtract(expenseAmount);
+
+        if (hypotheticalBalance.compareTo(OVERDRAFT_LIMIT) < 0) {
+            log.warn("Overdraft prevented for user {}. Hypothetical balance: {}", userId, hypotheticalBalance);
+            throw new IllegalArgumentException("Transaction refused. Please reduce the expense or add income to proceed.");
+        }
     }
 }
