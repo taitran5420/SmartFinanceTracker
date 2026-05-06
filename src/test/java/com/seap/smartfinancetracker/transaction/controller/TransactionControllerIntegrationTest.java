@@ -30,9 +30,16 @@ import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
+import static org.hibernate.validator.internal.util.Contracts.assertTrue;
 import static org.instancio.Select.field;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -129,6 +136,88 @@ class TransactionControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldFailToCreateTransaction_WhenAmountOverdraftLimit() throws Exception {
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
+                .set(field(TransactionCreateRequest::amount), new BigDecimal("1001.00"))
+                .create();
+
+        // Act & Assert
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", "Bearer " + validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Transaction refused. Please reduce the expense or add income to proceed."));
+    }
+
+    @Test
+    void shouldPreventOverdraft_WhenConcurrentRequestsAreSent() throws Exception {
+        // Arrange: Prepare the request payload for an EXPENSE of 900.00
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
+                .set(field(TransactionCreateRequest::amount), new BigDecimal("900.00"))
+                .create();
+
+        String requestBody = objectMapper.writeValueAsString(request);
+
+        // Setup Concurrency Utilities
+        int numberOfThreads = 2;
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+        CountDownLatch startLatch = new CountDownLatch(1); // The starting gun
+        CountDownLatch doneLatch = new CountDownLatch(numberOfThreads); // The finish line
+
+        // Use AtomicInteger to safely count results across multiple threads
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failCount = new AtomicInteger(0);
+
+        // Act: Create 2 parallel threads
+        for (int i = 0; i < numberOfThreads; i++) {
+            executorService.submit(() -> {
+                try {
+                    // All threads will wait here until the starting gun fires
+                    startLatch.await();
+
+                    // Fire the request to the API
+                    int statusCode = mockMvc.perform(post("/transactions")
+                                    .header("Authorization", "Bearer " + validToken)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                            .andReturn().getResponse().getStatus();
+
+                    if (statusCode == 201) {
+                        successCount.incrementAndGet();
+                    } else if (statusCode == 400) { // Or 409 depending on your ExceptionHandler mapping
+                        failCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    // Mark this thread as completed
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        // FIRE THE STARTING GUN! Both threads execute the MockMvc request simultaneously
+        startLatch.countDown();
+
+        // Wait up to 5 seconds for both threads to finish processing
+        boolean isCompleted = doneLatch.await(5, TimeUnit.SECONDS);
+        executorService.shutdown();
+
+        // Assert:
+        // Initial balance: 0. Limit: -1000.
+        // Request 1 (-900) -> Accepted.
+        // Request 2 (-900) -> Rejected (would result in -1800).
+        assertTrue(isCompleted, "Transaction requests take over 5 seconds. System might be Deadlock");
+        assertEquals(1, successCount.get(), "Only 1 transaction should be created successfully.");
+        assertEquals(1, failCount.get(), "1 transaction must be rejected due to overdraft limits.");
     }
     //</editor-fold>
 

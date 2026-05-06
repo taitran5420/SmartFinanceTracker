@@ -8,6 +8,7 @@ import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.transaction.mapper.TransactionMapper;
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import com.seap.smartfinancetracker.user.entity.User;
+import com.seap.smartfinancetracker.user.repository.UserRepository;
 import org.instancio.Instancio;
 import org.instancio.Select;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,9 @@ class TransactionServiceImplTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private TransactionMapper transactionMapper;
@@ -77,12 +81,17 @@ class TransactionServiceImplTest {
         UUID categoryId = UUID.randomUUID();
         TransactionType type = TransactionType.EXPENSE;
 
-        Mockito.when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
+        when(userRepository.findByIdWithPessimisticLock(userId))
+                .thenReturn(Optional.of(Instancio.of(User.class)
+                        .set(Select.field(User::getId), userId)
+                        .create()));
+
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
                 Mockito.any(UUID.class),
                 Mockito.eq(TransactionType.INCOME)
         )).thenReturn(BigDecimal.valueOf(50000));
 
-        Mockito.when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
                 Mockito.any(UUID.class),
                 Mockito.eq(TransactionType.EXPENSE)
         )).thenReturn(BigDecimal.ZERO);
@@ -124,6 +133,11 @@ class TransactionServiceImplTest {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         TransactionType type = TransactionType.INCOME;
+
+        when(userRepository.findByIdWithPessimisticLock(userId))
+                .thenReturn(Optional.of(Instancio.of(User.class)
+                        .set(Select.field(User::getId), userId)
+                        .create()));
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
                 .set(Select.field("categoryId"), null)

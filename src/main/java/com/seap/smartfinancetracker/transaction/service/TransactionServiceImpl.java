@@ -8,6 +8,7 @@ import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.transaction.mapper.TransactionMapper;
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import com.seap.smartfinancetracker.transaction.repository.TransactionSpecification;
+import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
 
     private final TransactionMapper transactionMapper;
 
@@ -37,6 +39,9 @@ public class TransactionServiceImpl implements TransactionService {
             log.warn("Duplicate transaction attempt detected with idempotency key: {}", transactionCreateRequest.idempotencyKey());
             throw new IllegalArgumentException("A transaction with this idempotency key already exists!");
         }
+
+        userRepository.findByIdWithPessimisticLock(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         Category category;
         TransactionType finalTransactionType;
