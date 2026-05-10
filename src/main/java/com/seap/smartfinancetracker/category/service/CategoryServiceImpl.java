@@ -15,6 +15,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Implementation of category service handling user categories.
+ */
 @Service
 @AllArgsConstructor
 public class CategoryServiceImpl implements CategoryService {

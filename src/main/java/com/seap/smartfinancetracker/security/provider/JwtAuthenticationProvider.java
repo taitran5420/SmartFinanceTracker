@@ -15,6 +15,21 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
+/**
+ * Custom Authentication provider responsible for validating JWT tokens and building authenticated user context.
+ *
+ * <p>This provider performs the following steps:
+ * <ul>
+ *     <li>Validates that the authentication request is a {@link JwtAuthenticationToken}</li>
+ *     <li>Extracts the JWT token and parses the username (email)</li>
+ *     <li>Loads user details from the database</li>
+ *     <li>Validates the token against user details</li>
+ *     <li>Returns an authenticated {@link JwtAuthenticationToken} if valid</li>
+ * </ul>
+ *
+ * <p>If the token is invalid, expired, or the user cannot be found,
+ * a {@link BadCredentialsException} is thrown.
+ */
 @Component
 public class JwtAuthenticationProvider implements AuthenticationProvider {
 
@@ -26,6 +41,13 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
         this.userDetailsService = userDetailsService;
     }
 
+    /**
+     * Authenticates the provided JWT authentication request.
+     *
+     * @param authentication the authentication request containing a JWT token
+     * @return an authenticated {@link JwtAuthenticationToken} if the token is valid
+     * @throws AuthenticationException if authentication fails due to invalid token or user
+     */
     @Override
     public @Nullable Authentication authenticate(@NonNull Authentication authentication) throws AuthenticationException {
 
@@ -55,6 +77,12 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
         }
     }
 
+    /**
+     * Indicates whether this provider supports the given authentication type.
+     *
+     * @param authentication the authentication class
+     * @return true if this provider supports {@link JwtAuthenticationToken}
+     */
     @Override
     public boolean supports(@NonNull Class<?> authentication) {
         return JwtAuthenticationToken.class.isAssignableFrom(authentication);

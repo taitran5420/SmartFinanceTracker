@@ -20,6 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+/**
+ * Concrete implementation of the {@link TransactionService}.
+ * <p>
+ * This class orchestrates the core business logic for transactions. It includes
+ * critical financial safeguards such as idempotency validation, pessimistic locking
+ * to prevent race conditions during concurrent balance updates, strict category
+ * ownership checks, and overdraft limit enforcements.
+ * </p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,8 +39,22 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionMapper transactionMapper;
 
+    /**
+     * The maximum allowed negative balance.
+     * Users cannot process an expense that drops their balance below this limit.
+     */
     private static final BigDecimal OVERDRAFT_LIMIT = new BigDecimal("-1000");
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> This method utilizes a pessimistic write lock
+     * on the User record to prevent concurrent transaction modifications. It resolves
+     * the {@link TransactionType} either from a provided category or assigns a system
+     * default category if only the type is provided. Finally, it validates against
+     * the {@code OVERDRAFT_LIMIT} before persisting an expense.
+     * </p>
+     */
     @Override
     @Transactional
     public TransactionResponse createTransaction(UUID userId, TransactionCreateRequest transactionCreateRequest) {
@@ -104,6 +127,14 @@ public class TransactionServiceImpl implements TransactionService {
         return transactionSlice.map(transactionMapper::toResponse);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Ensures that if a new category is provided,
+     * it belongs to the user and its transaction type strictly matches the original
+     * transaction's type.
+     * </p>
+     */
     @Override
     @Transactional
     public TransactionResponse updateTransaction(UUID userId, UUID transactionId, TransactionUpdateRequest transactionUpdateRequest) {
@@ -137,6 +168,13 @@ public class TransactionServiceImpl implements TransactionService {
         return transactionMapper.toResponse(savedTransaction);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Safely ignores the request if the transaction
+     * is already deactivated.
+     * </p>
+     */
     @Override
     @Transactional
     public void deleteTransaction(UUID userId, UUID transactionId) {

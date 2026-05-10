@@ -23,6 +23,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Seeds the database with initial test data in local and development profiles.
+ *
+ * <p>This runner creates a default test user and generates sample transactions
+ * if the database is empty. It is not executed in production.</p>
+ */
 @Slf4j
 @Component
 @Profile({"local", "dev"})

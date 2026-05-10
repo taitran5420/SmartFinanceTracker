@@ -10,6 +10,12 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.UUID;
 
+/**
+ * Represents the authenticated user details used by Spring Security.
+ *
+ * <p>This class acts as the application's security principal and is
+ * stored in the Spring Security context after successful authentication.</p>
+ */
 @Getter
 @Builder
 @AllArgsConstructor

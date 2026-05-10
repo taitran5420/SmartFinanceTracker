@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Implementation of JWT service for JWT token generation, parsing, and validation.
+ */
 @Service
 public class JwtServiceImpl implements JwtService {
 

@@ -7,6 +7,9 @@ import lombok.*;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Represents an application user stored in the database.
+ */
 @Entity
 @Table(name = "users")
 @Getter @Setter

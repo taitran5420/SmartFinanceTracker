@@ -11,12 +11,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
+/**
+ * Handles application-wide exceptions and converts them
+ * into standardized API error responses.
+ */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handlerIllegalArgumentException(IllegalArgumentException ex) {
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "Bad Request",
@@ -29,7 +33,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handlerMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
         String errorMessage = ex.getBindingResult()
                 .getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
@@ -47,7 +51,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handlerGlobalException(Exception ex) {
+    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
         log.error("Unhandled Exception caught in GlobalExceptionHandler:", ex);
 
         ErrorResponse errorResponse = new ErrorResponse(

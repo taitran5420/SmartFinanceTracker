@@ -8,6 +8,17 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
+/**
+ * Mapper class responsible for converting between Category-related DTOs and Entity.
+ *
+ * <p>This class handles:
+ * <ul>
+ *     <li>Mapping {@link CategoryCreateRequest} to {@link Category}</li>
+ *     <li>Mapping {@link Category} to {@link CategoryResponse}</li>
+ * </ul>
+ *
+ * <p>Note: Newly created categories are always initialized with {@code active = true}.
+ */
 @Component
 public class CategoryMapper {
     public Category toEntity(UUID userId, CategoryCreateRequest categoryRequest) {

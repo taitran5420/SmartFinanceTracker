@@ -3,6 +3,9 @@ package com.seap.smartfinancetracker.common.dto;
 import java.io.Serializable;
 import java.time.Instant;
 
+/**
+ * Standard error response returned by the API.
+ */
 public record ErrorResponse(
         int status,
         String error,

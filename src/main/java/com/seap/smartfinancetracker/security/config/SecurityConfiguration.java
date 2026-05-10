@@ -17,6 +17,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import java.util.List;
 
+/**
+ * Configures Spring Security for the application.
+ *
+ * <p>This configuration:
+ * <ul>
+ *     <li>Sets up JWT-based authentication</li>
+ *     <li>Registers authentication providers</li>
+ *     <li>Defines stateless session management</li>
+ *     <li>Configures secured and public endpoints</li>
+ * </ul>
+ * </p>
+ */
 @Configuration
 @EnableWebSecurity
 @AllArgsConstructor
@@ -24,6 +36,13 @@ public class SecurityConfiguration {
     private final JwtAuthenticationProvider jwtAuthenticationProvider;
     private final DaoAuthenticationProvider daoAuthenticationProvider;
 
+    /**
+     * Configures the application's security filter chain.
+     *
+     * @param http the {@link HttpSecurity} configuration object
+     * @param authenticationManager the authentication manager used by JWT filter
+     * @return the configured {@link SecurityFilterChain}
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) {
         JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(authenticationManager);
@@ -43,6 +62,12 @@ public class SecurityConfiguration {
         return http.build();
     }
 
+    /**
+     * Creates the application's authentication manager with
+     * both DAO and JWT authentication providers.
+     *
+     * @return the configured {@link AuthenticationManager}
+     */
     @Bean
     public AuthenticationManager authenticationManager() {
         return new ProviderManager(List.of(
