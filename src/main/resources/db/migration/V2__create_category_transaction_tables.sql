@@ -1,12 +1,16 @@
+-- Create enum transaction type
+CREATE TYPE transaction_type_enum AS ENUM ('INCOME', 'EXPENSE');
+
 -- Create categories table
 CREATE TABLE categories
 (
     id               UUID PRIMARY KEY,
     category_name    VARCHAR(255) NOT NULL,
-    transaction_type VARCHAR(50)  NOT NULL,
+    transaction_type transaction_type_enum  NOT NULL,
     user_id          UUID,
     active           BOOLEAN      NOT NULL,
     created_at       TIMESTAMP WITH TIME ZONE NOT NULL,
+    code             VARCHAR(20),
     CONSTRAINT uk_user_category_name UNIQUE NULLS NOT DISTINCT (user_id, category_name),
     CONSTRAINT fk_categories_user_id FOREIGN KEY (user_id) REFERENCES users (id)
 );
@@ -18,7 +22,7 @@ CREATE TABLE transactions
     user_id          UUID                     NOT NULL,
     category_id      UUID                     NOT NULL,
     amount           NUMERIC(19, 4)           NOT NULL,
-    transaction_type VARCHAR(50)              NOT NULL,
+    transaction_type transaction_type_enum    NOT NULL,
     note             TEXT,
     idempotency_key  UUID UNIQUE,
     created_at       TIMESTAMP WITH TIME ZONE NOT NULL,
