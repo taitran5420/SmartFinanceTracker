@@ -1,7 +1,6 @@
 package com.seap.smartfinancetracker.category.repository;
 
 import com.seap.smartfinancetracker.category.entity.Category;
-import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,5 +16,5 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     Optional<Category> findByIdAndUserId(UUID id, UUID userId);
 
-    Optional<Category> findFirstByUserIdIsNullAndTransactionType(TransactionType transactionType);
+    Optional<Category> findByCode(String code);
 }

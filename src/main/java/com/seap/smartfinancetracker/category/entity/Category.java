@@ -4,6 +4,8 @@ import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -24,6 +26,7 @@ public class Category {
     private String categoryName;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "transaction_type", nullable = false)
     private TransactionType transactionType;
 
@@ -33,6 +36,9 @@ public class Category {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(unique = true, updatable = false)
+    private String code;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)

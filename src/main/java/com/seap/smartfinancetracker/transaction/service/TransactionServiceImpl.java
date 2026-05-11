@@ -39,6 +39,9 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionMapper transactionMapper;
 
+    private static final String DEFAULT_EXPENSE_CODE = "SYS_OTHER_EXPENSE";
+    private static final String DEFAULT_INCOME_CODE = "SYS_OTHER_INCOME";
+
     /**
      * The maximum allowed negative balance.
      * Users cannot process an expense that drops their balance below this limit.
@@ -88,11 +91,13 @@ public class TransactionServiceImpl implements TransactionService {
 
         } else {
             finalTransactionType = transactionCreateRequest.transactionType();
+            String systemDefaultCategoryCode = finalTransactionType == TransactionType.EXPENSE ? DEFAULT_EXPENSE_CODE :
+                    DEFAULT_INCOME_CODE;
 
-            category = categoryRepository.findFirstByUserIdIsNullAndTransactionType(finalTransactionType)
+            category = categoryRepository.findByCode(systemDefaultCategoryCode)
                     .orElseThrow(() -> {
-                        log.error("System configuration error: Missing default category for type {}", finalTransactionType);
-                        return new IllegalStateException("System Error: Default category for this transaction type is missing!");
+                        log.error("System configuration error: Missing default category for code {}", systemDefaultCategoryCode);
+                        return new IllegalStateException("System Error: Missing " + systemDefaultCategoryCode + " category!");
                     });
         }
 

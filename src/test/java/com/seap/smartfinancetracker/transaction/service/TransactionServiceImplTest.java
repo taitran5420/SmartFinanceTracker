@@ -133,6 +133,7 @@ class TransactionServiceImplTest {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         TransactionType type = TransactionType.INCOME;
+        String systemDefaultCategoryCode = "SYS_OTHER_INCOME";
 
         when(userRepository.findByIdWithPessimisticLock(userId))
                 .thenReturn(Optional.of(Instancio.of(User.class)
@@ -154,7 +155,7 @@ class TransactionServiceImplTest {
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
         when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
-        when(categoryRepository.findFirstByUserIdIsNullAndTransactionType(type)).thenReturn(Optional.of(defaultCategory));
+        when(categoryRepository.findByCode(eq(systemDefaultCategoryCode))).thenReturn(Optional.of(defaultCategory));
         when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity)).thenReturn(expectedResponse);
