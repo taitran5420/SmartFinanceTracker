@@ -55,4 +55,7 @@ public class Transaction {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(name = "is_over_budget", nullable = false)
+    private boolean isOverBudget = false;
 }

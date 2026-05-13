@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.transaction.service;
 
+import com.seap.smartfinancetracker.budget.entity.Budget;
+import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.transaction.dto.*;
@@ -42,6 +44,9 @@ class TransactionServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private BudgetRepository budgetRepository;
 
     @Mock
     private TransactionMapper transactionMapper;
@@ -96,6 +101,9 @@ class TransactionServiceImplTest {
                 Mockito.eq(TransactionType.EXPENSE)
         )).thenReturn(BigDecimal.ZERO);
 
+        when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(any(UUID.class), any(UUID.class), anyInt(), anyInt()))
+                .thenReturn(Optional.empty());
+
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
                 .set(Select.field("categoryId"), categoryId)
                 .set(Select.field("transactionType"), type)
@@ -116,7 +124,7 @@ class TransactionServiceImplTest {
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
         when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
-        when(transactionMapper.toResponse(savedEntity)).thenReturn(expectedResponse);
+        when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
 
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
@@ -158,7 +166,7 @@ class TransactionServiceImplTest {
         when(categoryRepository.findByCode(eq(systemDefaultCategoryCode))).thenReturn(Optional.of(defaultCategory));
         when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
-        when(transactionMapper.toResponse(savedEntity)).thenReturn(expectedResponse);
+        when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
 
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
@@ -342,6 +350,206 @@ class TransactionServiceImplTest {
         assertEquals(totalIncome, actualResponse.totalIncome());
         assertEquals(totalExpense, actualResponse.totalExpense());
         assertEquals(expectedBalance, actualResponse.currentBalance());
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="Test Budget Evaluation">
+    @Test
+    @DisplayName("Should quietly accept transaction when total usage is under 90 percent")
+    void createTransaction_ShouldAcceptQuietly_WhenUsageIsUnder90Percent() {
+        // 1. Arrange
+        UUID userId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        // Budget is 1000, current spent is 800, new transaction is 50 => Projected total is 850 (85% - Under 90%)
+        BigDecimal budgetLimit = new BigDecimal("1000.00");
+        BigDecimal currentSpent = new BigDecimal("800.00");
+        BigDecimal newAmount = new BigDecimal("50.00");
+
+        setupMocksForBudgetEvaluation(userId, categoryId, budgetLimit, currentSpent);
+
+        Transaction mappedEntity = Instancio.of(Transaction.class)
+                .ignore(Select.field(Transaction::getId))
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::isOverBudget), false)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        Transaction savedEntity = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
+
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
+        when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
+
+        // Expect warningMessage to be null since usage is under the 90% threshold
+        when(transactionMapper.toResponse(eq(savedEntity), nullable(String.class))).thenReturn(expectedResponse);
+
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(Select.field("categoryId"), categoryId)
+                .set(Select.field("transactionType"), TransactionType.EXPENSE)
+                .set(Select.field("amount"), newAmount)
+                .create();
+
+        // 2. Act
+        TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
+
+        // 3. Assert
+        assertNotNull(actualResponse);
+        assertEquals(expectedResponse, actualResponse);
+        assertFalse(mappedEntity.isOverBudget(), "Transaction should not be marked as over-budget");
+        verify(transactionRepository, times(1)).save(mappedEntity);
+    }
+
+    @Test
+    @DisplayName("Should return warning message when total usage is between 90 and 100 percent")
+    void createTransaction_ShouldReturnWarning_WhenUsageIsBetween90And100Percent() {
+        // 1. Arrange
+        UUID userId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        // Budget is 1000, current spent is 800, new transaction is 150 => Projected total is 950 (95% - Between 90% and 100%)
+        BigDecimal budgetLimit = new BigDecimal("1000.00");
+        BigDecimal currentSpent = new BigDecimal("800.00");
+        BigDecimal newAmount = new BigDecimal("150.00");
+
+        setupMocksForBudgetEvaluation(userId, categoryId, budgetLimit, currentSpent);
+
+        Transaction mappedEntity = Instancio.of(Transaction.class)
+                .ignore(Select.field(Transaction::getId))
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::isOverBudget), false)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        Transaction savedEntity = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
+
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
+        when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
+
+        when(transactionMapper.toResponse(eq(savedEntity), nullable(String.class))).thenReturn(expectedResponse);
+
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(Select.field("categoryId"), categoryId)
+                .set(Select.field("transactionType"), TransactionType.EXPENSE)
+                .set(Select.field("amount"), newAmount)
+                .create();
+
+        // 2. Act
+        TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
+
+        // 3. Assert
+        assertNotNull(actualResponse);
+        assertEquals(expectedResponse, actualResponse);
+        assertFalse(mappedEntity.isOverBudget(), "Transaction should not be marked as over-budget yet");
+    }
+
+    @Test
+    @DisplayName("Should mark transaction as over-budget and return warning when usage exceeds 100 percent")
+    void createTransaction_ShouldMarkOverBudgetAndWarn_WhenUsageExceeds100Percent() {
+        // 1. Arrange
+        UUID userId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+
+        // Budget is 1000, current spent is 800, new transaction is 250 => Projected total is 1050 (105% - Exceeds 100%)
+        BigDecimal budgetLimit = new BigDecimal("1000.00");
+        BigDecimal currentSpent = new BigDecimal("800.00");
+        BigDecimal newAmount = new BigDecimal("250.00");
+
+        setupMocksForBudgetEvaluation(userId, categoryId, budgetLimit, currentSpent);
+
+        Transaction mappedEntity = Instancio.of(Transaction.class)
+                .ignore(Select.field(Transaction::getId))
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::isOverBudget), false)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        Transaction savedEntity = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
+                .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
+                .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
+                .create();
+
+        TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
+
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
+        when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
+
+        // Expect a warning message indicating the budget has been exceeded
+        String expectedWarning = "Transaction accepted, but you have exceeded your budget for this category.";
+        when(transactionMapper.toResponse(eq(savedEntity), eq(expectedWarning))).thenReturn(expectedResponse);
+
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(Select.field("categoryId"), categoryId)
+                .set(Select.field("transactionType"), TransactionType.EXPENSE)
+                .set(Select.field("amount"), newAmount)
+                .create();
+
+        // 2. Act
+        TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
+
+        // 3. Assert
+        assertNotNull(actualResponse);
+        assertEquals(expectedResponse, actualResponse);
+        assertTrue(mappedEntity.isOverBudget(), "Transaction MUST be marked as over-budget");
+    }
+
+    /**
+     * Helper method to set up common mocks for budget evaluation tests.
+     */
+    private void setupMocksForBudgetEvaluation(UUID userId, UUID categoryId, BigDecimal budgetLimit, BigDecimal currentSpent) {
+        User owner = Instancio.of(User.class).set(Select.field(User::getId), userId).create();
+        Category category = Instancio.of(Category.class)
+                .set(Select.field(Category::getId), categoryId)
+                .set(Select.field(Category::getUser), owner)
+                .set(Select.field(Category::getTransactionType), TransactionType.EXPENSE)
+                .create();
+
+        Budget mockBudget = Instancio.of(Budget.class)
+                .set(Select.field(Budget::isActive), true)
+                .set(Select.field(Budget::getAmountLimit), budgetLimit)
+                .create();
+
+        // Mock passing initial validations
+        when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
+        when(userRepository.findByIdWithPessimisticLock(userId)).thenReturn(Optional.of(owner));
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+
+        // Bypass overdraft limit check from the existing createTransaction logic
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.INCOME)))
+                .thenReturn(new BigDecimal("100000.00"));
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.EXPENSE)))
+                .thenReturn(BigDecimal.ZERO);
+
+        // Mock DB Queries for Budget
+        when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(
+                eq(userId), eq(categoryId), anyInt(), anyInt()))
+                .thenReturn(Optional.of(mockBudget));
+
+        // Note: Adjust the repository method name if it differs in your actual implementation
+        when(transactionRepository.calculateTotalSpentByCategoryAndMonth(
+                eq(userId), eq(categoryId), anyInt(), anyInt()))
+                .thenReturn(currentSpent);
     }
     //</editor-fold>
 }

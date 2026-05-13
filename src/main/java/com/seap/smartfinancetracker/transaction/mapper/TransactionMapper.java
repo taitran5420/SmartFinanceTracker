@@ -48,11 +48,29 @@ public class TransactionMapper {
 
     /**
      * Converts a persisted {@link Transaction} entity into a {@link TransactionResponse} DTO.
+     * <p>
+     * <b>Note:</b> This is a convenience method that delegates to
+     * {@link #toResponse(Transaction, String)} with a {@code null} warning message.
+     * </p>
      *
      * @param transaction the transaction entity retrieved from the database
      * @return the mapped response DTO, or {@code null} if the entity is null
+     * @see #toResponse(Transaction, String)
      */
-    public TransactionResponse toResponse(Transaction transaction) {
+    public TransactionResponse toResponse(Transaction transaction){
+        return toResponse(transaction, null);
+    }
+
+    /**
+     * Converts a persisted {@link Transaction} entity into a {@link TransactionResponse} DTO,
+     * optionally including a warning message.
+     *
+     * @param transaction    the transaction entity retrieved from the database
+     * @param warningMessage an optional warning message to attach to the response
+     * (e.g., alerts for exceeding a budget threshold); can be {@code null}
+     * @return the mapped response DTO, or {@code null} if the entity is null
+     */
+    public TransactionResponse toResponse(Transaction transaction, String warningMessage) {
         if (transaction == null) {
             return null;
         }
@@ -65,6 +83,8 @@ public class TransactionMapper {
                 .note(transaction.getNote())
                 .active(transaction.isActive())
                 .createdAt(transaction.getCreatedAt())
+                .isOverBudget(transaction.isOverBudget())
+                .warningMessage(warningMessage)
                 .build();
     }
 }

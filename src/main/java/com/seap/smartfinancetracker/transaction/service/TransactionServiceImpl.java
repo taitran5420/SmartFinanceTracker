@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.transaction.service;
 
+import com.seap.smartfinancetracker.budget.entity.Budget;
+import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.transaction.dto.*;
@@ -18,6 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -36,6 +43,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final BudgetRepository budgetRepository;
 
     private final TransactionMapper transactionMapper;
 
@@ -54,8 +62,8 @@ public class TransactionServiceImpl implements TransactionService {
      * <b>Implementation Details:</b> This method utilizes a pessimistic write lock
      * on the User record to prevent concurrent transaction modifications. It resolves
      * the {@link TransactionType} either from a provided category or assigns a system
-     * default category if only the type is provided. Finally, it validates against
-     * the {@code OVERDRAFT_LIMIT} before persisting an expense.
+     * default category if only the type is provided. Then, it validates against
+     * the {@code OVERDRAFT_LIMIT} before persisting an expense. Finally, it validates with category's budget
      * </p>
      */
     @Override
@@ -109,8 +117,14 @@ public class TransactionServiceImpl implements TransactionService {
             validateOverdraftLimit(userId, transaction.getAmount());
         }
 
+        String warningMessage = null;
+
+        if (finalTransactionType == TransactionType.EXPENSE) {
+            warningMessage = this.evaluateBudgetUsage(userId, category.getId(), transaction);
+        }
+
         Transaction savedTransaction = transactionRepository.save(transaction);
-        return transactionMapper.toResponse(savedTransaction);
+        return transactionMapper.toResponse(savedTransaction, warningMessage);
     }
 
     @Override
@@ -236,5 +250,42 @@ public class TransactionServiceImpl implements TransactionService {
             log.warn("Overdraft prevented for user {}. Hypothetical balance: {}", userId, hypotheticalBalance);
             throw new IllegalArgumentException("Transaction refused. Please reduce the expense or add income to proceed.");
         }
+    }
+
+    private String evaluateBudgetUsage(UUID userId, UUID categoryId, Transaction newTransaction) {
+        Instant now = Instant.now();
+        ZonedDateTime zdt = now.atZone(ZoneId.systemDefault());
+        int month = zdt.getMonthValue();
+        int year = zdt.getYear();
+
+        Optional<Budget> optionalBudget = budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(userId,
+                categoryId, month, year);
+
+        if (optionalBudget.isEmpty()) {
+            return null;
+        }
+
+        Budget budget = optionalBudget.get();
+
+        BigDecimal budgetLimit = budget.getAmountLimit();
+
+        if (!budget.isActive() || budgetLimit.equals(BigDecimal.ZERO)) {
+            return null;
+        }
+
+        BigDecimal totalSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(userId, categoryId,
+                month, year).add(newTransaction.getAmount());
+
+        BigDecimal percentage = totalSpent.divide(budgetLimit, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+
+        if (percentage.compareTo(BigDecimal.valueOf(100)) > 0) {
+            newTransaction.setOverBudget(true);
+            return "Transaction accepted, but you have exceeded your budget for this category.";
+        } else if (percentage.compareTo(BigDecimal.valueOf(90)) >= 0) {
+            return "You are approaching your budget limit for this category.";
+        }
+
+        return null;
     }
 }
