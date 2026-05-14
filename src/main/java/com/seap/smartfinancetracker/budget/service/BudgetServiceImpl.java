@@ -41,8 +41,11 @@ public class BudgetServiceImpl implements BudgetService {
      * <b>Implementation Details:</b>
      * <ul>
      * <li>Fetches the actual Category entity via {@link CategoryService} to ensure ownership.</li>
-     * <li>Validates that the target category is of type {@code EXPENSE}.</li>
-     * <li>Prevents creation if a budget already exists for this category in the specified month and year.</li>
+     * <li>Validates that the target category is strictly of type {@code EXPENSE}.</li>
+     * <li>Prevents creation if an <b>active</b> budget already exists for this category in the specified month and year.</li>
+     * <li><b>Reactivation Mechanism:</b> If a previously soft-deleted (inactive) budget is found for the same
+     * category and period, it gracefully reactivates the existing record and applies the new amount limit
+     * instead of creating a duplicate database row.</li>
      * </ul>
      * </p>
      */
@@ -53,7 +56,7 @@ public class BudgetServiceImpl implements BudgetService {
 
         Category category = categoryService.getCategoryEntity(userId, categoryId);
 
-        if (category == null) {
+        if (category == null || !category.isActive()) {
             throw new InvalidParameterException("Category Not Found");
         }
 
