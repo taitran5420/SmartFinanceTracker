@@ -9,6 +9,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * JPA Entity representing a financial budget in the database.
+ */
 @Entity
 @Table(name = "budgets", uniqueConstraints = {
         @UniqueConstraint(name = "uk_user_category_month_year",

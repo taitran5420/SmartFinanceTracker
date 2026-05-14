@@ -34,18 +34,16 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toResponse(createdCategory);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Ensure Category belongs to user or is defaults
+     * </p>
+     */
     @Override
     @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(UUID userId, UUID categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
-
-        boolean isDefault = category.getUser() == null;
-        boolean isOwner = !isDefault && category.getUser().getId().equals(userId);
-
-        if (!isDefault && !isOwner) {
-            throw new IllegalArgumentException("You do not have permission to access this category!");
-        }
+        Category category = getCategory(userId, categoryId);
 
         return categoryMapper.toResponse(category);
     }
@@ -81,5 +79,31 @@ public class CategoryServiceImpl implements CategoryService {
 
         existingCategory.setActive(false);
         categoryRepository.save(existingCategory);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Ensure Category belongs to user or is defaults
+     * </p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Category getCategoryEntity(UUID userId, UUID categoryId) {
+        return getCategory(userId, categoryId);
+    }
+
+    private Category getCategory(UUID userId, UUID categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
+
+        boolean isDefault = category.getUser() == null;
+        boolean isOwner = !isDefault && category.getUser().getId().equals(userId);
+
+        if (!isDefault && !isOwner) {
+            throw new IllegalArgumentException("You do not have permission to access this category!");
+        }
+
+        return category;
     }
 }
