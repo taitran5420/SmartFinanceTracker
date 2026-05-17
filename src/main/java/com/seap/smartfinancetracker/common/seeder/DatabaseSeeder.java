@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@Profile({"local", "dev"})
+@Profile({"local"})
 @RequiredArgsConstructor
 public class DatabaseSeeder implements CommandLineRunner {
     private final UserRepository userRepository;

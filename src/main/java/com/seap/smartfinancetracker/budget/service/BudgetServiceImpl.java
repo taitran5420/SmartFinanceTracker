@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.budget.service;
 
 import com.seap.smartfinancetracker.budget.dto.BudgetCreateRequest;
 import com.seap.smartfinancetracker.budget.dto.BudgetResponse;
+import com.seap.smartfinancetracker.budget.dto.BudgetSummaryResponse;
 import com.seap.smartfinancetracker.budget.dto.BudgetUpdateRequest;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.mapper.BudgetMapper;
@@ -9,10 +10,13 @@ import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
+import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.InvalidParameterException;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 public class BudgetServiceImpl implements BudgetService {
 
     private final BudgetRepository budgetRepository;
+    private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
     private final BudgetMapper budgetMapper;
 
@@ -141,5 +146,47 @@ public class BudgetServiceImpl implements BudgetService {
 
         existingBudget.setActive(false);
         budgetRepository.save(existingBudget);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Use {@link TransactionRepository} to calculate total spent.
+     * </p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public BudgetSummaryResponse getBudgetSummary(UUID userId, UUID id) {
+        Budget budget = budgetRepository.findByUserIdAndId(userId, id)
+                .orElseThrow(() -> new IllegalArgumentException("Budget Not Found"));
+
+        if (!budget.isActive()) {
+           throw new IllegalArgumentException("Budget Not Active");
+        }
+
+        BigDecimal budgetSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(
+                userId,
+                budget.getCategory().getId(),
+                budget.getBudgetMonth(),
+                budget.getBudgetYear()
+        );
+
+        BigDecimal budgetLimit = budget.getAmountLimit();
+        BigDecimal budgetRemaining = budgetLimit.subtract(budgetSpent);
+
+        BigDecimal percentageSpent = budgetLimit.compareTo(BigDecimal.ZERO) <= 0 ? BigDecimal.ZERO :
+                budgetSpent.divide(budgetLimit, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+
+        double percentage =  percentageSpent.doubleValue();
+        boolean isOverBudget = budgetSpent.compareTo(budgetLimit) > 0;
+
+        return budgetMapper.toBudgetSummaryResponse(
+                budget,
+                budgetSpent,
+                budgetRemaining,
+                percentage,
+                isOverBudget
+        );
     }
 }

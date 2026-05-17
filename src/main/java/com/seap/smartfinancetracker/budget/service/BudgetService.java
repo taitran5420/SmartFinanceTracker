@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.budget.service;
 
 import com.seap.smartfinancetracker.budget.dto.BudgetCreateRequest;
 import com.seap.smartfinancetracker.budget.dto.BudgetResponse;
+import com.seap.smartfinancetracker.budget.dto.BudgetSummaryResponse;
 import com.seap.smartfinancetracker.budget.dto.BudgetUpdateRequest;
 
 import java.util.List;
@@ -71,4 +72,17 @@ public interface BudgetService {
      * @param id     the unique identifier of the budget to delete
      */
     void deleteBudget(UUID userId, UUID id);
+
+    /**
+     * Retrieves a comprehensive summary for a specific budget.
+     * <p>
+     * This method acts as a data aggregator. It combines the static database limits with
+     * dynamically calculated spending metrics (e.g., spent amount, remaining balance,
+     * progress percentage).
+     *
+     * @param userId the unique identifier of the user requesting the summary
+     * @param id     the unique identifier of the budget to summarize
+     * @return a {@link BudgetSummaryResponse} containing the aggregated metrics
+     */
+    BudgetSummaryResponse getBudgetSummary(UUID userId, UUID id);
 }

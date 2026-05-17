@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.budget.controller;
 
 import com.seap.smartfinancetracker.budget.dto.BudgetCreateRequest;
 import com.seap.smartfinancetracker.budget.dto.BudgetResponse;
+import com.seap.smartfinancetracker.budget.dto.BudgetSummaryResponse;
 import com.seap.smartfinancetracker.budget.dto.BudgetUpdateRequest;
 import com.seap.smartfinancetracker.budget.service.BudgetService;
 import com.seap.smartfinancetracker.security.annotation.CurrentUserId;
@@ -105,5 +106,22 @@ public class BudgetController {
     public ResponseEntity<Void> deleteBudget(@CurrentUserId UUID userId, @PathVariable UUID budgetId) {
         budgetService.deleteBudget(userId, budgetId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Retrieves a comprehensive summary for a specific budget.
+     * <p>
+     * This endpoint returns aggregated data, combining the static budget limits with
+     * dynamically calculated transaction metrics. It is primarily designed to populate dashboard and reporting views.
+     * </p>
+     *
+     * @param userId   the authenticated user's ID
+     * @param budgetId the unique identifier of the budget to summarize
+     * @return a {@link ResponseEntity} containing the calculated {@link BudgetSummaryResponse}
+     */
+    @GetMapping("/{budgetId}/summary")
+    public ResponseEntity<BudgetSummaryResponse> getBudgetSummary(@CurrentUserId UUID userId, @PathVariable UUID budgetId) {
+        BudgetSummaryResponse budgetSummaryResponse = budgetService.getBudgetSummary(userId, budgetId);
+        return ResponseEntity.ok(budgetSummaryResponse);
     }
 }
