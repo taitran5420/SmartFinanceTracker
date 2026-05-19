@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.transaction.controller;
 
+import com.seap.smartfinancetracker.budget.entity.Budget;
+import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
@@ -15,6 +17,9 @@ import com.seap.smartfinancetracker.user.repository.UserRepository;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -22,12 +27,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.*;
 import static org.hibernate.validator.internal.util.Contracts.assertTrue;
@@ -42,6 +50,7 @@ import static org.instancio.Select.field;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,6 +78,9 @@ class TransactionControllerIntegrationTest {
 
     @Autowired
     private TransactionRepository transactionRepository;
+
+    @Autowired
+    private BudgetRepository budgetRepository;
 
     @Autowired
     private JwtService jwtService;
@@ -380,6 +392,57 @@ class TransactionControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalIncome").value(1000.00))
                 .andExpect(jsonPath("$.totalExpense").value(400.00))
                 .andExpect(jsonPath("$.currentBalance").value(600.00));
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="POST /transactions (Budget Evaluation)">
+    @ParameterizedTest(name = "Amount: {0}, Expected over budget flag: {1}, Expected warning: {2}")
+    @MethodSource("provideBudgetTestCases")
+    @Transactional
+    void shouldHandleTransactionOverBudgetFlagAndBudgetWarnings(BigDecimal amount, boolean isOverBudget, String expectedWarningMessage) throws Exception {
+        // Arrange
+        Category expenseCategory = Instancio.of(Category.class)
+                .ignore(field(Category::getId))
+                .set(field(Category::getUser), testUser)
+                .set(field(Category::getTransactionType), TransactionType.EXPENSE)
+                .set(field(Category::isActive), true)
+                .create();
+        expenseCategory = categoryRepository.save(expenseCategory);
+
+        Budget budget = Instancio.of(Budget.class)
+                .ignore(field(Budget::getId))
+                .set(field(Budget::getUser), testUser)
+                .set(field(Budget::getCategory), expenseCategory)
+                .set(field(Budget::getAmountLimit), BigDecimal.valueOf(100))
+                .set(field(Budget::getBudgetMonth), LocalDate.now().getMonthValue())
+                .set(field(Budget::getBudgetYear),  LocalDate.now().getYear())
+                .set(field(Budget::isActive), true)
+                .create();
+        budgetRepository.save(budget);
+
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(field(TransactionCreateRequest::categoryId), expenseCategory.getId())
+                .set(field(TransactionCreateRequest::amount), amount)
+                .ignore(field(TransactionCreateRequest::transactionType))
+                .create();
+
+        // Act & Assert
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", "Bearer " + validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andDo(print())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOverBudget").value(isOverBudget))
+                .andExpect(jsonPath("$.warningMessage").value(expectedWarningMessage));
+    }
+
+    private static Stream<Arguments> provideBudgetTestCases() {
+        return Stream.of(
+                Arguments.of(BigDecimal.valueOf(50), false, null),
+                Arguments.of(BigDecimal.valueOf(95), false, "You are approaching your budget limit for this category."),
+                Arguments.of(BigDecimal.valueOf(102), true, "Transaction accepted, but you have exceeded your budget for this category.")
+        );
     }
     //</editor-fold>
 }
