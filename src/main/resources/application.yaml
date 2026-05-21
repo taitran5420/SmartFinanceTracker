@@ -34,7 +34,7 @@ spring:
           jobStore:
             driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
             isClustered: true
-            
+
 server:
   servlet:
     context-path: /api
