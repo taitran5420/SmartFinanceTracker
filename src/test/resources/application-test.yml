@@ -1,0 +1,15 @@
+spring:
+  flyway:
+    enabled: true
+    clean-disabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+logging:
+  level:
+    org.springframework: WARN
+    org.testcontainers: INFO
+    com.seap.smartfinancetracker: DEBUG

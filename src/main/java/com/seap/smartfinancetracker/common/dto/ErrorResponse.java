@@ -1,0 +1,18 @@
+package com.seap.smartfinancetracker.common.dto;
+
+import java.io.Serializable;
+import java.time.Instant;
+
+/**
+ * Standard error response returned by the API.
+ */
+public record ErrorResponse(
+        int status,
+        String error,
+        String message,
+        Instant timestamp
+) implements Serializable {
+    public ErrorResponse(int status, String error, String message) {
+        this(status, error, message, Instant.now());
+    }
+}
