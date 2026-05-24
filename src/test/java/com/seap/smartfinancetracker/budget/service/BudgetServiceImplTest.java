@@ -9,6 +9,7 @@ import com.seap.smartfinancetracker.budget.mapper.BudgetMapper;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.service.CategoryService;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import org.instancio.Instancio;
@@ -19,10 +20,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.security.InvalidParameterException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -140,11 +141,13 @@ class BudgetServiceImplTest {
                 .thenReturn(Optional.of(activeBudget));
 
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> budgetService.createBudget(userId, request)
         );
-        assertEquals("An active budget already exists for this period.", exception.getMessage());
+
+        assertEquals(HttpStatus.CONFLICT.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("An active budget already exists for this period", exception.getMessage());
         verify(budgetRepository, never()).save(any(Budget.class));
     }
 
@@ -163,11 +166,13 @@ class BudgetServiceImplTest {
         when(categoryService.getCategoryEntity(userId, categoryId)).thenReturn(category);
 
         // Act & Assert
-        InvalidParameterException exception = assertThrows(
-                InvalidParameterException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> budgetService.createBudget(userId, request)
         );
-        assertEquals("Invalid Category Type To Create Budget", exception.getMessage());
+
+        assertEquals(HttpStatus.BAD_REQUEST.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("Budgets can only be created for EXPENSE categories", exception.getMessage());
     }
     //</editor-fold>
 
@@ -208,10 +213,13 @@ class BudgetServiceImplTest {
         when(budgetRepository.findByUserIdAndId(userId, budgetId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> budgetService.updateBudget(userId, budgetId, updateRequest)
         );
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("Budget Not Found", exception.getMessage());
         verify(budgetRepository, never()).save(any());
     }
     //</editor-fold>
@@ -339,10 +347,12 @@ class BudgetServiceImplTest {
         when(budgetRepository.findByUserIdAndId(userId, budgetId)).thenReturn(Optional.of(inactiveBudget));
 
         // Act & Assert
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> budgetService.getBudgetSummary(userId, budgetId)
         );
+
+        assertEquals(HttpStatus.BAD_REQUEST.value(), exception.getErrorCode().getHttpStatus());
         assertEquals("Budget Not Active", exception.getMessage());
         verify(transactionRepository, never()).calculateTotalSpentByCategoryAndMonth(any(), any(), anyInt(), anyInt());
     }

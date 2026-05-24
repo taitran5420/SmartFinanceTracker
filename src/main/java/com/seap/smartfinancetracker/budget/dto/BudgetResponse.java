@@ -31,6 +31,7 @@ public record BudgetResponse(
         Integer month,
         Integer year,
         Instant createdAt,
+        Instant updatedAt,
         boolean active
 ) {
 }

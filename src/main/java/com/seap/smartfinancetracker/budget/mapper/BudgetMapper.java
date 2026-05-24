@@ -31,9 +31,7 @@ public class BudgetMapper {
      * @param budgetCreateRequest the payload containing budget details
      * @return a new {@link Budget} entity ready to be persisted, or {@code null} if the request is null
      */
-    public Budget toEntity(UUID userId, BudgetCreateRequest budgetCreateRequest) {
-        if (budgetCreateRequest == null)
-            return null;
+    public Budget toEntity(UUID userId, BudgetCreateRequest budgetCreateRequest) throws NullPointerException {
 
         return Budget.builder()
                 .user(User.builder().id(userId).build())
@@ -63,6 +61,7 @@ public class BudgetMapper {
                 .year(budget.getBudgetYear())
                 .active(budget.isActive())
                 .createdAt(budget.getCreatedAt())
+                .updatedAt(budget.getUpdatedAt())
                 .build();
     }
 
@@ -87,6 +86,11 @@ public class BudgetMapper {
             BigDecimal remainingAmount,
             double progressPercentage,
             boolean isOverBudget) {
+
+        if (budget == null) {
+            return null;
+        }
+
         return BudgetSummaryResponse.builder()
                 .budgetId(budget.getId())
                 .categoryId(budget.getCategory().getId())
