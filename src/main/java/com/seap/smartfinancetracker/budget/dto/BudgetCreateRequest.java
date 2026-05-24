@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.budget.dto;
 
+import com.seap.smartfinancetracker.budget.constant.BudgetValidationMessage;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -21,18 +22,19 @@ import java.util.UUID;
  * @param year        the target year for the budget
  */
 public record BudgetCreateRequest(
-        @NotNull(message = "Category cannot be null")
+        @NotNull(message = BudgetValidationMessage.CATEGORY_REQUIRED)
         UUID categoryId,
 
-        @NotNull(message = "Amount is required")
-        @Positive(message = "Amount must be strictly positive")
+        @NotNull(message = BudgetValidationMessage.AMOUNT_REQUIRED)
+        @Positive(message = BudgetValidationMessage.AMOUNT_POSITIVE)
         BigDecimal amountLimit,
 
-        @NotNull(message = "Month cannot be null")
-        @Min(1) @Max(12)
+        @NotNull(message = BudgetValidationMessage.MONTH_REQUIRED)
+        @Min(value = 1, message = BudgetValidationMessage.MONTH_MIN)
+        @Max(value = 12, message = BudgetValidationMessage.MONTH_MAX)
         Integer month,
 
-        @NotNull(message = "Year cannot be null")
+        @NotNull(message = BudgetValidationMessage.YEAR_REQUIRED)
         Integer year
 ) {
 }

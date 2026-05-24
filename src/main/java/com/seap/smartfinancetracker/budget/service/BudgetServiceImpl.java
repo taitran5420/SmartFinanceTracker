@@ -5,10 +5,13 @@ import com.seap.smartfinancetracker.budget.dto.BudgetResponse;
 import com.seap.smartfinancetracker.budget.dto.BudgetSummaryResponse;
 import com.seap.smartfinancetracker.budget.dto.BudgetUpdateRequest;
 import com.seap.smartfinancetracker.budget.entity.Budget;
+import com.seap.smartfinancetracker.budget.exception.BudgetErrorCode;
 import com.seap.smartfinancetracker.budget.mapper.BudgetMapper;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.service.CategoryService;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import lombok.AllArgsConstructor;
@@ -17,8 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.security.InvalidParameterException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -59,15 +62,7 @@ public class BudgetServiceImpl implements BudgetService {
     public BudgetResponse createBudget(UUID userId, BudgetCreateRequest budgetCreateRequest) {
         UUID categoryId = budgetCreateRequest.categoryId();
 
-        Category category = categoryService.getCategoryEntity(userId, categoryId);
-
-        if (category == null || !category.isActive()) {
-            throw new InvalidParameterException("Category Not Found");
-        }
-
-        if (!(category.getTransactionType() == TransactionType.EXPENSE)) {
-            throw new InvalidParameterException("Invalid Category Type To Create Budget");
-        }
+        validateCategoryForBudget(userId, categoryId);
 
         Optional<Budget> optionalExistingBudget = budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(
                 userId, budgetCreateRequest.categoryId(), budgetCreateRequest.month(), budgetCreateRequest.year());
@@ -75,15 +70,7 @@ public class BudgetServiceImpl implements BudgetService {
         if (optionalExistingBudget.isPresent()) {
             Budget existingBudget = optionalExistingBudget.get();
 
-            if (existingBudget.isActive()) {
-                throw new IllegalArgumentException("An active budget already exists for this period.");
-            }
-
-            existingBudget.setActive(true);
-            existingBudget.setAmountLimit(budgetCreateRequest.amountLimit());
-
-            Budget reactivatedBudget = budgetRepository.save(existingBudget);
-            return budgetMapper.toResponse(reactivatedBudget);
+            return reactivateExistingBudget(existingBudget, budgetCreateRequest.amountLimit());
         }
 
         Budget budget = budgetMapper.toEntity(userId, budgetCreateRequest);
@@ -98,8 +85,7 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     @Transactional
     public BudgetResponse updateBudget(UUID userId, UUID budgetId, BudgetUpdateRequest budgetUpdateRequest) {
-        Budget existingBudget = budgetRepository.findByUserIdAndId(userId, budgetId)
-                .orElseThrow(() -> new IllegalArgumentException("Budget Not Found"));
+        Budget existingBudget = getBudgetOrThrow(userId, budgetId);
 
         existingBudget.setAmountLimit(budgetUpdateRequest.amountLimit());
 
@@ -116,6 +102,7 @@ public class BudgetServiceImpl implements BudgetService {
         List<Budget> budgets = budgetRepository.findByUserIdAndCategoryId(userId, categoryId);
 
         return budgets.stream()
+                .filter(Objects::nonNull)
                 .map(budgetMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -126,8 +113,7 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     @Transactional(readOnly = true)
     public BudgetResponse getBudgetById(UUID userId, UUID id) {
-        Budget budget = budgetRepository.findByUserIdAndId(userId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Budget Not Found"));
+        Budget budget = getBudgetOrThrow(userId, id);
 
         return budgetMapper.toResponse(budget);
     }
@@ -141,8 +127,7 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     @Transactional
     public void deleteBudget(UUID userId, UUID id) {
-        Budget existingBudget = budgetRepository.findByUserIdAndId(userId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Budget Not Found"));
+        Budget existingBudget = getBudgetOrThrow(userId, id);
 
         existingBudget.setActive(false);
         budgetRepository.save(existingBudget);
@@ -156,12 +141,13 @@ public class BudgetServiceImpl implements BudgetService {
      */
     @Override
     @Transactional(readOnly = true)
+
     public BudgetSummaryResponse getBudgetSummary(UUID userId, UUID id) {
         Budget budget = budgetRepository.findByUserIdAndId(userId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Budget Not Found"));
+                .orElseThrow(() -> new BusinessException(BudgetErrorCode.BUDGET_NOT_FOUND));
 
         if (!budget.isActive()) {
-           throw new IllegalArgumentException("Budget Not Active");
+           throw new BusinessException(BudgetErrorCode.BUDGET_NOT_ACTIVE);
         }
 
         BigDecimal budgetSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(
@@ -171,6 +157,36 @@ public class BudgetServiceImpl implements BudgetService {
                 budget.getBudgetYear()
         );
 
+        return calculateAndMapToSummary(budget, budgetSpent);
+    }
+
+    private Budget getBudgetOrThrow(UUID userId, UUID id) {
+        return budgetRepository.findByUserIdAndId(userId, id)
+                .orElseThrow(() -> new BusinessException(BudgetErrorCode.BUDGET_NOT_FOUND));
+    }
+
+    private void validateCategoryForBudget(UUID userId, UUID categoryId) {
+        Category category = categoryService.getCategoryEntity(userId, categoryId);
+
+        if (category == null || !category.isActive()) {
+            throw new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND);
+        }
+
+        if (!(category.getTransactionType() == TransactionType.EXPENSE)) {
+            throw new BusinessException(BudgetErrorCode.CATEGORY_MUST_BE_EXPENSE);
+        }
+    }
+
+    private BudgetResponse reactivateExistingBudget(Budget existingBudget, BigDecimal newAmountLimit) {
+        if (existingBudget.isActive()) {
+            throw new BusinessException(BudgetErrorCode.ACTIVE_BUDGET_EXISTS);
+        }
+        existingBudget.setActive(true);
+        existingBudget.setAmountLimit(newAmountLimit);
+        return budgetMapper.toResponse(budgetRepository.save(existingBudget));
+    }
+
+    private BudgetSummaryResponse calculateAndMapToSummary(Budget budget, BigDecimal budgetSpent) {
         BigDecimal budgetLimit = budget.getAmountLimit();
         BigDecimal budgetRemaining = budgetLimit.subtract(budgetSpent);
 
@@ -178,15 +194,10 @@ public class BudgetServiceImpl implements BudgetService {
                 budgetSpent.divide(budgetLimit, 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
 
-        double percentage =  percentageSpent.doubleValue();
         boolean isOverBudget = budgetSpent.compareTo(budgetLimit) > 0;
 
         return budgetMapper.toBudgetSummaryResponse(
-                budget,
-                budgetSpent,
-                budgetRemaining,
-                percentage,
-                isOverBudget
+                budget, budgetSpent, budgetRemaining, percentageSpent.doubleValue(), isOverBudget
         );
     }
 }

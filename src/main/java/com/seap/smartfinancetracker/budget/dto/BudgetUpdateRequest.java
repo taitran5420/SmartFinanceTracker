@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.budget.dto;
 
+import com.seap.smartfinancetracker.budget.constant.BudgetValidationMessage;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -18,7 +19,7 @@ import java.math.BigDecimal;
  * must be provided and strictly positive
  */
 public record BudgetUpdateRequest(
-        @NotNull(message = "Amount is required")
-        @Positive(message = "Amount must be strictly positive")
+        @NotNull(message = BudgetValidationMessage.AMOUNT_REQUIRED)
+        @Positive(message = BudgetValidationMessage.AMOUNT_POSITIVE)
         BigDecimal amountLimit) {
 }

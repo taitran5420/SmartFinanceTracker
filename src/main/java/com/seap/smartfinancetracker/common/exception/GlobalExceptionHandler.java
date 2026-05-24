@@ -19,11 +19,30 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String VALIDATION_ERROR_CODE = "VALIDATION_FAILED";
+    private static final String BAD_REQUEST_ERROR_CODE = "BAD_REQUEST";
+    private static final String INTERNAL_SERVER_ERROR_CODE = "INTERNAL_SERVER_ERROR";
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex) {
+        ErrorCode errorCode = ex.getErrorCode();
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                errorCode.getHttpStatus(),
+                errorCode.getCode(),
+                errorCode.getMessage()
+        );
+
+        log.warn("Business Exception [{}]: {}", errorCode.getCode(), errorCode.getMessage());
+
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Bad Request",
+                BAD_REQUEST_ERROR_CODE,
                 ex.getMessage()
         );
 
@@ -43,7 +62,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Validation Error",
+                VALIDATION_ERROR_CODE,
                 errorMessage
         );
 
@@ -56,7 +75,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Internal Server Error",
+                INTERNAL_SERVER_ERROR_CODE,
                 "An unexpected error occurred. Please try again later."
         );
 
