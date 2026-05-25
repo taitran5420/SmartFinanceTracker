@@ -13,6 +13,7 @@ import java.util.UUID;
  * @param categoryName the category's name
  * @param transactionType the category's transaction type
  * @param createdAt the time category was created
+ * @param updatedAt the time category was updated
  * @param active return {@code true} if category still active, {@code false} if category already deleted
  */
 @Builder
@@ -21,5 +22,6 @@ public record CategoryResponse(
         String categoryName,
         TransactionType transactionType,
         Instant createdAt,
+        Instant updatedAt,
         boolean active
 ) { }

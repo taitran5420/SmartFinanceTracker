@@ -20,6 +20,7 @@ import java.util.UUID;
  * @param month       the target month of the budget (1-12)
  * @param year        the target year of the budget
  * @param createdAt   the exact timestamp when the budget record was created
+ * @param updatedAt   the exact timestamp when the budget record was updated
  * @param active      flag indicating whether the budget is currently active ({@code true})
  * or soft-deleted ({@code false})
  */

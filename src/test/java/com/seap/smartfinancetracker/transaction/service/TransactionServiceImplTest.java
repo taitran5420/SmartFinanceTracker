@@ -4,6 +4,8 @@ import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.category.service.CategoryService;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -22,6 +24,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -51,6 +54,9 @@ class TransactionServiceImplTest {
     @Mock
     private TransactionMapper transactionMapper;
 
+    @Mock
+    private CategoryService categoryService;
+
     @InjectMocks
     private TransactionServiceImpl transactionService;
     //</editor-fold>
@@ -69,12 +75,13 @@ class TransactionServiceImplTest {
         when(transactionRepository.existsByIdempotencyKey(idempotencyKey)).thenReturn(true);
 
         // 2. Act & Assert
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> transactionService.createTransaction(userId, request)
         );
 
-        assertEquals("A transaction with this idempotency key already exists!", exception.getMessage());
+        assertEquals(HttpStatus.CONFLICT.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("A transaction with this idempotency key already exists", exception.getMessage());
         verify(transactionRepository, never()).save(any());
     }
 
@@ -121,10 +128,10 @@ class TransactionServiceImplTest {
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
         when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
-        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
         when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
+        when(categoryService.getCategoryEntity(eq(userId), eq(categoryId))).thenReturn(category);
 
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
@@ -210,10 +217,13 @@ class TransactionServiceImplTest {
         when(transactionRepository.findByIdAndUserId(transactionId, userId)).thenReturn(Optional.empty());
 
         // 2. Act & Assert
-        assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> transactionService.getTransactionById(userId, transactionId)
         );
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("Transaction Not Found", exception.getMessage());
     }
     //</editor-fold>
 
@@ -533,7 +543,7 @@ class TransactionServiceImplTest {
         // Mock passing initial validations
         when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
         when(userRepository.findByIdWithPessimisticLock(userId)).thenReturn(Optional.of(owner));
-        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(categoryService.getCategoryEntity(eq(userId), eq(categoryId))).thenReturn(category);
 
         // Bypass overdraft limit check from the existing createTransaction logic
         when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.INCOME)))

@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.category.dto;
 
+import com.seap.smartfinancetracker.category.constant.CategoryValidationMessage;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -8,6 +9,6 @@ import jakarta.validation.constraints.NotBlank;
  * @param categoryName the update category's name
  */
 public record CategoryUpdateRequest(
-        @NotBlank(message = "Category name cannot be blank")
+        @NotBlank(message = CategoryValidationMessage.CATEGORY_NAME_CANNOT_BE_BLANK)
         String categoryName
 ) { }

@@ -21,6 +21,7 @@ import java.util.UUID;
  * @param transactionType the classification of the transaction (e.g., INCOME or EXPENSE)
  * @param note            any additional notes or descriptions provided for the transaction
  * @param createdAt       the exact timestamp when the transaction was originally recorded
+ * @param updatedAt       the exact timestamp when the transaction was updated
  * @param active          indicates whether the transaction is active ({@code true}) or has been soft-deleted ({@code false})
  * @param isOverBudget    indicates whether the transaction is over budget ({@code true}) or not ({@code false})
  * @param warningMessage  warning message of transaction when checking with budget
@@ -33,6 +34,7 @@ public record TransactionResponse(
         TransactionType transactionType,
         String note,
         Instant createdAt,
+        Instant updatedAt,
         boolean active,
         boolean isOverBudget,
         String warningMessage

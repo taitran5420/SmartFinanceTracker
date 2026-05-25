@@ -6,6 +6,7 @@ import com.seap.smartfinancetracker.category.dto.CategoryUpdateRequest;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.mapper.CategoryMapper;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import org.instancio.Instancio;
 import org.instancio.Select;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.ArrayList;
@@ -136,12 +138,13 @@ class CategoryServiceImplTest {
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.empty());
 
         // 2. Act & Assert
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> categoryService.updateCategory(userId, categoryId, updateRequest)
         );
 
-        assertEquals("Category Not Found!", exception.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("Category Not Found", exception.getMessage());
         verify(categoryRepository, never()).save(any(Category.class));
     }
     //</editor-fold>
@@ -179,11 +182,12 @@ class CategoryServiceImplTest {
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.empty());
 
         // 2. Act & Assert
-        assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> categoryService.deactivateCategory(userId, categoryId)
         );
 
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
         verify(categoryRepository, never()).save(any(Category.class));
     }
     //</editor-fold>

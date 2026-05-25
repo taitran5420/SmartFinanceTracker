@@ -262,7 +262,7 @@ class TransactionControllerIntegrationTest {
 
         mockMvc.perform(get("/transactions/{transactionId}", fakeTransactionId)
                         .header("Authorization", "Bearer " + validToken))
-                .andExpect(status().isBadRequest()); // Assuming your exception handler maps IllegalArgumentException to 400 Bad Request
+                .andExpect(status().isNotFound());
     }
     //</editor-fold>
 
