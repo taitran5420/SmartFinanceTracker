@@ -22,8 +22,8 @@ import java.util.UUID;
         @Index(name = Transaction.USER_CREATED_AT_INDEX,
                 columnList = Transaction.USER_ID_COLUMN_NAME + ", " + Transaction.CREATED_AT_COLUMN_NAME)
 })
-@Getter @Setter
-@Builder
+@Getter
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)

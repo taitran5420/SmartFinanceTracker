@@ -91,9 +91,7 @@ public class TransactionServiceImpl implements TransactionService {
         Category category = resolveCategory(userId, transactionCreateRequest);
         TransactionType finalTransactionType = category.getTransactionType();
 
-        Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest);
-        transaction.setCategory(category);
-        transaction.setTransactionType(finalTransactionType);
+        Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest, category, finalTransactionType);
 
         if (finalTransactionType == TransactionType.EXPENSE) {
             validateOverdraftLimit(userId, transaction.getAmount());
@@ -102,7 +100,15 @@ public class TransactionServiceImpl implements TransactionService {
         String warningMessage = null;
 
         if (finalTransactionType == TransactionType.EXPENSE) {
-            warningMessage = this.evaluateBudgetUsage(userId, category.getId(), transaction);
+            BudgetEvaluationResult evalResult = this.evaluateBudgetUsage(userId, category.getId(), transaction);
+            if (evalResult != null) {
+                warningMessage = evalResult.warningMessage();
+
+                if (evalResult.isOverBudget()) {
+                    transaction = transaction.toBuilder()
+                            .isOverBudget(true).build();
+                }
+            }
         }
 
         Transaction savedTransaction = transactionRepository.save(transaction);
@@ -141,6 +147,8 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse updateTransaction(UUID userId, UUID transactionId, TransactionUpdateRequest transactionUpdateRequest) {
         Transaction transaction = getTransactionByUserIdAndTransactionId(userId, transactionId);
 
+        Transaction.TransactionBuilder transactionBuilder = transaction.toBuilder();
+
         if (transactionUpdateRequest.categoryId() != null && !transactionUpdateRequest.categoryId().equals(transaction.getCategory().getId())) {
             Category newCategory = categoryService.getCategoryEntity(userId, transactionUpdateRequest.categoryId());
             if (newCategory == null) {
@@ -151,7 +159,7 @@ public class TransactionServiceImpl implements TransactionService {
                 throw new BusinessException(TransactionErrorCode.TRANSACTION_TYPE_CANNOT_CHANGE);
             }
 
-            transaction.setCategory(newCategory);
+            transactionBuilder.category(newCategory);
         }
 
         if (transactionUpdateRequest.amount() != null) {
@@ -162,14 +170,16 @@ public class TransactionServiceImpl implements TransactionService {
             {
                 validateOverdraftLimit(userId, newAmount);
             }
-            transaction.setAmount(newAmount);
+
+            transactionBuilder.amount(newAmount);
         }
 
         if (transactionUpdateRequest.note() != null) {
-            transaction.setNote(transactionUpdateRequest.note());
+            transactionBuilder.note(transactionUpdateRequest.note());
         }
 
-        Transaction savedTransaction = transactionRepository.save(transaction);
+        Transaction updatedTransaction = transactionBuilder.build();
+        Transaction savedTransaction = transactionRepository.save(updatedTransaction);
 
         return transactionMapper.toResponse(savedTransaction);
     }
@@ -191,8 +201,10 @@ public class TransactionServiceImpl implements TransactionService {
             return;
         }
 
-        transaction.setActive(false);
-        transactionRepository.save(transaction);
+        Transaction deactivateTransaction = transaction.toBuilder()
+                .active(false)
+                .build();
+        transactionRepository.save(deactivateTransaction);
         log.info("Transaction {} is deactivated", transactionId);
     }
 
@@ -254,7 +266,7 @@ public class TransactionServiceImpl implements TransactionService {
         }
     }
 
-    private String evaluateBudgetUsage(UUID userId, UUID categoryId, Transaction newTransaction) {
+    private BudgetEvaluationResult evaluateBudgetUsage(UUID userId, UUID categoryId, Transaction newTransaction) {
         Instant transactionTime = newTransaction.getCreatedAt() != null ? newTransaction.getCreatedAt() : Instant.now();
         ZonedDateTime zdt = transactionTime.atZone(ZoneId.systemDefault());
         int month = zdt.getMonthValue();
@@ -282,12 +294,13 @@ public class TransactionServiceImpl implements TransactionService {
                 .multiply(BigDecimal.valueOf(100));
 
         if (percentage.compareTo(BigDecimal.valueOf(100)) > 0) {
-            newTransaction.setOverBudget(true);
-            return OVER_BUDGET_MESSAGE;
+            return new BudgetEvaluationResult(true, OVER_BUDGET_MESSAGE);
         } else if (percentage.compareTo(BigDecimal.valueOf(90)) >= 0) {
-            return WARNING_BUDGET_MESSAGE;
+            return new BudgetEvaluationResult(false, WARNING_BUDGET_MESSAGE);
         }
 
         return null;
     }
+
+    private record BudgetEvaluationResult(boolean isOverBudget, String warningMessage) {}
 }

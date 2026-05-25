@@ -87,7 +87,8 @@ class TransactionControllerIntegrationTest {
 
     private String validToken;
     private User testUser;
-    private Category testCategory;
+    private Category testCategoryExpense;
+    private Category testCategoryIncome;
 
     @BeforeEach
     void setUp() {
@@ -103,13 +104,21 @@ class TransactionControllerIntegrationTest {
         testUser = userRepository.save(testUser);
 
         // Create Test Category to satisfy FK constraints
-        testCategory = Instancio.of(Category.class)
+        testCategoryExpense = Instancio.of(Category.class)
                 .ignore(field(Category::getId))
                 .set(field(Category::getUser), testUser)
                 .set(field(Category::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Category::isActive), true)
                 .create();
-        testCategory = categoryRepository.save(testCategory);
+        testCategoryExpense = categoryRepository.save(testCategoryExpense);
+
+        testCategoryIncome = Instancio.of(Category.class)
+                .ignore(field(Category::getId))
+                .set(field(Category::getUser), testUser)
+                .set(field(Category::getTransactionType), TransactionType.INCOME)
+                .set(field(Category::isActive), true)
+                .create();
+        testCategoryIncome = categoryRepository.save(testCategoryIncome);
 
         // Create JWT Test Token
         UserPrincipal userPrincipal = UserPrincipal.builder()
@@ -125,7 +134,7 @@ class TransactionControllerIntegrationTest {
     void shouldCreateTransactionSuccessfully() throws Exception {
         // Arrange
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("150.00"))
                 .create();
@@ -153,7 +162,7 @@ class TransactionControllerIntegrationTest {
     @Test
     void shouldFailToCreateTransaction_WhenAmountOverdraftLimit() throws Exception {
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("1001.00"))
                 .create();
@@ -171,7 +180,7 @@ class TransactionControllerIntegrationTest {
     void shouldPreventOverdraft_WhenConcurrentRequestsAreSent() throws Exception {
         // Arrange: Prepare the request payload for an EXPENSE of 900.00
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("900.00"))
                 .create();
@@ -240,7 +249,7 @@ class TransactionControllerIntegrationTest {
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Transaction::getAmount), new BigDecimal("250.50"))
                 .set(field(Transaction::isActive), true)
@@ -273,14 +282,14 @@ class TransactionControllerIntegrationTest {
         Transaction t1 = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
 
         Transaction t2 = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
 
@@ -304,8 +313,9 @@ class TransactionControllerIntegrationTest {
         // Arrange: Create existing transaction
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
+                .set(field(Transaction::getTransactionType), testCategoryIncome.getTransactionType())
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryIncome)
                 .set(field(Transaction::getAmount), new BigDecimal("100.00"))
                 .set(field(Transaction::isActive), true)
                 .create();
@@ -313,7 +323,7 @@ class TransactionControllerIntegrationTest {
 
         // New data for update
         TransactionUpdateRequest updateRequest = Instancio.of(TransactionUpdateRequest.class)
-                .set(field(TransactionUpdateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionUpdateRequest::categoryId), testCategoryIncome.getId())
                 .set(field(TransactionUpdateRequest::amount), new BigDecimal("999.99"))
                 .set(field(TransactionUpdateRequest::note), "Updated note")
                 .create();
@@ -336,7 +346,7 @@ class TransactionControllerIntegrationTest {
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
         transaction = transactionRepository.save(transaction);
@@ -375,7 +385,7 @@ class TransactionControllerIntegrationTest {
         Transaction expenseTx = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory) // testCategory is EXPENSE
+                .set(field(Transaction::getCategory), testCategoryExpense) // testCategory is EXPENSE
                 .set(field(Transaction::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Transaction::getAmount), new BigDecimal("400.00"))
                 .set(field(Transaction::isActive), true)

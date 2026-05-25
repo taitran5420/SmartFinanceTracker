@@ -67,9 +67,11 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(UUID userId, UUID categoryId, CategoryUpdateRequest categoryUpdateRequest) {
         Category existingCategory = getOwnedCategoryOrThrow(userId, categoryId);
 
-        existingCategory.setCategoryName(categoryUpdateRequest.categoryName());
+        Category modifiedCategory = existingCategory.toBuilder()
+                .categoryName(categoryUpdateRequest.categoryName())
+                .build();
 
-        Category updatedCategory = categoryRepository.save(existingCategory);
+        Category updatedCategory = categoryRepository.save(modifiedCategory);
         return categoryMapper.toResponse(updatedCategory);
     }
 
@@ -78,8 +80,10 @@ public class CategoryServiceImpl implements CategoryService {
     public void deactivateCategory(UUID userId, UUID categoryId) {
         Category existingCategory = getOwnedCategoryOrThrow(userId, categoryId);
 
-        existingCategory.setActive(false);
-        categoryRepository.save(existingCategory);
+        Category deactivatedCategory = existingCategory.toBuilder()
+                .active(false)
+                .build();
+        categoryRepository.save(deactivatedCategory);
     }
 
     /**

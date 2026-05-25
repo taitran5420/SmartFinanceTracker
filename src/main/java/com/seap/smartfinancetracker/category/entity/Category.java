@@ -18,9 +18,9 @@ import java.util.UUID;
         @UniqueConstraint( name = Category.USER_CATEGORY_NAME_INDEX,
                 columnNames = { Category.USER_ID_COLUMN, Category.CATEGORY_NAME_COLUMN } )
 })
-@Getter @Setter
+@Getter
 @NoArgsConstructor @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 @EntityListeners(AuditingEntityListener.class)
 public class Category {
 

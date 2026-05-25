@@ -15,8 +15,8 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = User.USER_TABLE_NAME)
-@Getter @Setter
-@Builder
+@Getter
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
