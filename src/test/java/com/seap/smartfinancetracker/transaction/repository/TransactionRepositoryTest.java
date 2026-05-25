@@ -285,12 +285,22 @@ class TransactionRepositoryTest {
                 .set(Select.field(Transaction::getTransactionType), TransactionType.EXPENSE)
                 .set(Select.field(Transaction::getAmount), new BigDecimal("30.0000"))
                 .set(Select.field(Transaction::isActive), true)
-                .set(Select.field(Transaction::getCreatedAt), lastMonthZdtInstant)
-                .ignore(Select.field(Transaction::getId))
                 .create();
 
-        transactionRepository.saveAll(List.of(t1, t2, t3, t4));
+        transactionRepository.saveAll(List.of(t1, t2, t3));
 
+        entityManager.getEntityManager().createNativeQuery(
+                        "INSERT INTO transactions (id, user_id, category_id, amount, transaction_type, active, created_at, updated_at) " +
+                                "VALUES (:id, :userId, :categoryId, :amount, CAST(:type AS transaction_type_enum), :active, :pastTime, :pastTime)"
+                )
+                .setParameter("id", t4.getId())
+                .setParameter("userId", t4.getUser().getId())
+                .setParameter("categoryId", t4.getCategory().getId())
+                .setParameter("amount", t4.getAmount())
+                .setParameter("type",t4.getTransactionType().name())
+                .setParameter("active", true)
+                .setParameter("pastTime", lastMonthZdtInstant)
+                .executeUpdate();
         // Act
         BigDecimal totalSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(
                 owner.getId(), category.getId(), LocalDate.now().getMonthValue(), LocalDate.now().getYear()

@@ -9,7 +9,7 @@ CREATE TABLE budgets
     budget_year INT NOT NULL,
     active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_budgets_user_id FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_budgets_category_id FOREIGN KEY (category_id) REFERENCES categories (id),
     CONSTRAINT uk_user_category_month_year UNIQUE (user_id, category_id, budget_month, budget_year)

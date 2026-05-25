@@ -28,7 +28,15 @@ public enum CategoryErrorCode implements ErrorCode {
     /**
      * Error indicating that an operation was attempted on a soft-deleted category.
      */
-    CATEGORY_INACTIVE("CAT-400-01", "Category is inactive", HttpStatus.BAD_REQUEST.value());
+    CATEGORY_INACTIVE("CAT-400-01", "Category is inactive", HttpStatus.BAD_REQUEST.value()),
+
+    /**
+     * Error indicating that the authenticated user lacks the necessary permissions
+     * to perform an operation on the specified category.
+     */
+    CATEGORY_ACCESS_DENIED("CAT-403-01",
+            "You do not have permission to access this category!",
+            HttpStatus.FORBIDDEN.value());
 
     private final String code;
     private final String message;

@@ -21,6 +21,14 @@ import java.util.UUID;
  */
 @Component
 public class CategoryMapper {
+
+    /**
+     * Converts a category creation request into a {@link Category} entity.
+     *
+     * @param userId          the unique identifier of the user creating the category
+     * @param categoryRequest the payload containing category details
+     * @return a new {@link Category} entity ready to be persisted, or {@code null} if the request is null
+     */
     public Category toEntity(UUID userId, CategoryCreateRequest categoryRequest) {
         if  (categoryRequest == null) {
             return null;
@@ -33,6 +41,12 @@ public class CategoryMapper {
                 .build();
     }
 
+    /**
+     * Converts a persisted {@link Category} entity into a {@link CategoryResponse} DTO.
+     *
+     * @param category the category entity retrieved from the database
+     * @return the mapped response DTO, or {@code null} if the entity is null
+     */
     public CategoryResponse toResponse(Category category) {
         if  (category == null) {
             return null;
@@ -43,6 +57,7 @@ public class CategoryMapper {
                 .categoryName(category.getCategoryName())
                 .transactionType(category.getTransactionType())
                 .createdAt(category.getCreatedAt())
+                .updatedAt(category.getUpdatedAt())
                 .active(category.isActive())
                 .build();
     }

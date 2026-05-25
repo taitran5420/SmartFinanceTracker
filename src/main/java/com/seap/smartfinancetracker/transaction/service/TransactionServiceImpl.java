@@ -3,13 +3,18 @@ package com.seap.smartfinancetracker.transaction.service;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.category.service.CategoryService;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
+import com.seap.smartfinancetracker.transaction.exception.TransactionErrorCode;
 import com.seap.smartfinancetracker.transaction.mapper.TransactionMapper;
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import com.seap.smartfinancetracker.transaction.repository.TransactionSpecification;
+import com.seap.smartfinancetracker.user.exception.UserErrorCode;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +47,7 @@ import java.util.UUID;
 public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
     private final UserRepository userRepository;
     private final BudgetRepository budgetRepository;
 
@@ -49,6 +55,11 @@ public class TransactionServiceImpl implements TransactionService {
 
     private static final String DEFAULT_EXPENSE_CODE = "SYS_OTHER_EXPENSE";
     private static final String DEFAULT_INCOME_CODE = "SYS_OTHER_INCOME";
+
+    private static final String OVER_BUDGET_MESSAGE = "Transaction accepted, but you have exceeded your budget for this category.";
+    private static final String WARNING_BUDGET_MESSAGE = "You are approaching your budget limit for this category.";
+
+    private static final String MISSING_DEFAULT_CATEGORY_ERROR_MSG = "System Error: Missing '%s' category!";
 
     /**
      * The maximum allowed negative balance.
@@ -71,43 +82,14 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse createTransaction(UUID userId, TransactionCreateRequest transactionCreateRequest) {
         if (transactionCreateRequest.idempotencyKey() != null && transactionRepository.existsByIdempotencyKey(transactionCreateRequest.idempotencyKey())) {
             log.warn("Duplicate transaction attempt detected with idempotency key: {}", transactionCreateRequest.idempotencyKey());
-            throw new IllegalArgumentException("A transaction with this idempotency key already exists!");
+            throw new BusinessException(TransactionErrorCode.IDEMPOTENCY_KEY_EXISTS);
         }
 
         userRepository.findByIdWithPessimisticLock(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
 
-        Category category;
-        TransactionType finalTransactionType;
-
-        if (transactionCreateRequest.categoryId() != null) {
-            category = categoryRepository.findById(transactionCreateRequest.categoryId())
-                    .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
-
-            if (isNotCategoryOwner(userId, category)) {
-                log.warn("User {} attempted to use unauthorized category {}", userId, category.getId());
-                throw new IllegalArgumentException("You do not have permission to use this category!");
-            }
-
-            if (transactionCreateRequest.transactionType() != null && transactionCreateRequest.transactionType() != category.getTransactionType()) {
-                log.error("Conflict: Request type {} does not match Category type {}",
-                        transactionCreateRequest.transactionType(), category.getTransactionType());
-                throw new IllegalArgumentException("Transaction type does not match the category's defined type!");
-            }
-
-            finalTransactionType = category.getTransactionType();
-
-        } else {
-            finalTransactionType = transactionCreateRequest.transactionType();
-            String systemDefaultCategoryCode = finalTransactionType == TransactionType.EXPENSE ? DEFAULT_EXPENSE_CODE :
-                    DEFAULT_INCOME_CODE;
-
-            category = categoryRepository.findByCode(systemDefaultCategoryCode)
-                    .orElseThrow(() -> {
-                        log.error("System configuration error: Missing default category for code {}", systemDefaultCategoryCode);
-                        return new IllegalStateException("System Error: Missing " + systemDefaultCategoryCode + " category!");
-                    });
-        }
+        Category category = resolveCategory(userId, transactionCreateRequest);
+        TransactionType finalTransactionType = category.getTransactionType();
 
         Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest);
         transaction.setCategory(category);
@@ -160,22 +142,27 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = getTransactionByUserIdAndTransactionId(userId, transactionId);
 
         if (transactionUpdateRequest.categoryId() != null && !transactionUpdateRequest.categoryId().equals(transaction.getCategory().getId())) {
-            Category newCategory = categoryRepository.findById(transactionUpdateRequest.categoryId())
-                    .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
-
-            if (isNotCategoryOwner(userId, newCategory)) {
-                throw new IllegalArgumentException("You do not have permission to use this category!");
+            Category newCategory = categoryService.getCategoryEntity(userId, transactionUpdateRequest.categoryId());
+            if (newCategory == null) {
+                throw new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND);
             }
 
             if (newCategory.getTransactionType() != transaction.getTransactionType()) {
-                throw new IllegalArgumentException("Cannot change category to a different transaction type!");
+                throw new BusinessException(TransactionErrorCode.TRANSACTION_TYPE_CANNOT_CHANGE);
             }
 
             transaction.setCategory(newCategory);
         }
 
         if (transactionUpdateRequest.amount() != null) {
-            transaction.setAmount(transactionUpdateRequest.amount());
+
+            BigDecimal newAmount = transactionUpdateRequest.amount();
+
+            if (transaction.getTransactionType().equals(TransactionType.EXPENSE))
+            {
+                validateOverdraftLimit(userId, newAmount);
+            }
+            transaction.setAmount(newAmount);
         }
 
         if (transactionUpdateRequest.note() != null) {
@@ -215,17 +202,32 @@ public class TransactionServiceImpl implements TransactionService {
         return getBalanceResponseByUserId(userId);
     }
 
-    private boolean isNotCategoryOwner(UUID userId, Category category) {
-        if (category.getUser() == null) {
-            return false;
+    private Category resolveCategory(UUID userId, TransactionCreateRequest transactionCreateRequest) {
+        if (transactionCreateRequest.categoryId() != null) {
+            Category category = categoryService.getCategoryEntity(userId, transactionCreateRequest.categoryId());
+
+            if (transactionCreateRequest.transactionType() != null && transactionCreateRequest.transactionType() != category.getTransactionType()) {
+                log.error("Conflict: Request type {} does not match Category type {}",
+                        transactionCreateRequest.transactionType(), category.getTransactionType());
+                throw new BusinessException(TransactionErrorCode.TRANSACTION_TYPE_CONFLICT);
+            }
+
+            return category;
         }
 
-        return !category.getUser().getId().equals(userId);
+        String systemDefaultCategoryCode = (transactionCreateRequest.transactionType() == TransactionType.EXPENSE) ? DEFAULT_EXPENSE_CODE :
+                DEFAULT_INCOME_CODE;
+
+        return categoryRepository.findByCode(systemDefaultCategoryCode)
+                .orElseThrow(() -> {
+                    log.error("System configuration error: Missing default category for code {}", systemDefaultCategoryCode);
+                    return new IllegalStateException(String.format(MISSING_DEFAULT_CATEGORY_ERROR_MSG, systemDefaultCategoryCode));
+                });
     }
 
     private Transaction getTransactionByUserIdAndTransactionId(UUID userId, UUID transactionId) {
         return transactionRepository.findByIdAndUserId(transactionId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found!"));
+                .orElseThrow(() -> new BusinessException(TransactionErrorCode.TRANSACTION_NOT_FOUND));
     }
 
     private BalanceResponse getBalanceResponseByUserId(UUID userId) {
@@ -248,13 +250,13 @@ public class TransactionServiceImpl implements TransactionService {
 
         if (hypotheticalBalance.compareTo(OVERDRAFT_LIMIT) < 0) {
             log.warn("Overdraft prevented for user {}. Hypothetical balance: {}", userId, hypotheticalBalance);
-            throw new IllegalArgumentException("Transaction refused. Please reduce the expense or add income to proceed.");
+            throw new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED);
         }
     }
 
     private String evaluateBudgetUsage(UUID userId, UUID categoryId, Transaction newTransaction) {
-        Instant now = Instant.now();
-        ZonedDateTime zdt = now.atZone(ZoneId.systemDefault());
+        Instant transactionTime = newTransaction.getCreatedAt() != null ? newTransaction.getCreatedAt() : Instant.now();
+        ZonedDateTime zdt = transactionTime.atZone(ZoneId.systemDefault());
         int month = zdt.getMonthValue();
         int year = zdt.getYear();
 
@@ -281,9 +283,9 @@ public class TransactionServiceImpl implements TransactionService {
 
         if (percentage.compareTo(BigDecimal.valueOf(100)) > 0) {
             newTransaction.setOverBudget(true);
-            return "Transaction accepted, but you have exceeded your budget for this category.";
+            return OVER_BUDGET_MESSAGE;
         } else if (percentage.compareTo(BigDecimal.valueOf(90)) >= 0) {
-            return "You are approaching your budget limit for this category.";
+            return WARNING_BUDGET_MESSAGE;
         }
 
         return null;

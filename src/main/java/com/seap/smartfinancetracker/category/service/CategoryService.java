@@ -77,7 +77,7 @@ public interface CategoryService {
      * @param userId ID of the user who owns the category
      * @param categoryId ID of the category to retrieve
      * @return {@link com.seap.smartfinancetracker.category.entity.Category} entity
-     * @throws IllegalArgumentException if category not found or unauthorized
+     * @throws com.seap.smartfinancetracker.common.exception.BusinessException if category not found or unauthorized
      */
     Category getCategoryEntity(UUID userId, UUID categoryId);
 }

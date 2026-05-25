@@ -6,6 +6,7 @@ import com.seap.smartfinancetracker.auth.dto.RegisterRequest;
 import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.user.entity.User;
+import com.seap.smartfinancetracker.user.enums.Role;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,27 +27,30 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
-    @Transactional
     @Override
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new IllegalArgumentException("Email already exists");
         }
 
-        User user = new User();
-        user.setEmail(request.email());
-        user.setPassword(passwordEncoder.encode(request.password()));
-        user.setFullName(request.fullName());
+        User user = User.builder()
+                .email(request.email())
+                .password(passwordEncoder.encode(request.password()))
+                .role(Role.USER)
+                .fullName(request.fullName())
+                .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
         return AuthResponse.builder()
-                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(user)))
+                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(savedUser)))
                 .expiresIn(jwtService.getExpirationTime())
                 .build();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public AuthResponse authenticate(LoginRequest request) {
         authenticationManager.authenticate(
           new UsernamePasswordAuthenticationToken(request.email(), request.password())

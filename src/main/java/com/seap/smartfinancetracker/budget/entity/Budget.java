@@ -4,7 +4,9 @@ import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,23 +16,29 @@ import java.util.UUID;
  * JPA Entity representing a financial budget in the database.
  */
 @Entity
-@Table(name = "budgets", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_user_category_month_year",
-                columnNames = {"user_id", "category_id", "budget_month", "budget_year"})
+@Table(name = Budget.BUDGET_TABLE_NAME, uniqueConstraints = {
+        @UniqueConstraint(name = Budget.USER_CATEGORY_MONTH_YEAR_UNIQUE_CONSTRAINT,
+                columnNames = {Budget.USER_ID_COLUMN_NAME, Budget.CATEGORY_ID_COLUMN_NAME,
+                        Budget.BUDGET_MONTH_COLUMN_NAME, Budget.BUDGET_YEAR_COLUMN_NAME})
 })
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter @Setter
+@EntityListeners(AuditingEntityListener.class)
 public class Budget {
 
-    private static final String USER_ID_COLUMN_NAME = "user_id";
-    private static final String CATEGORY_ID_COLUMN_NAME = "category_id";
-    private static final String AMOUNT_LIMIT_COLUMN_NAME = "amount_limit";
-    private static final String BUDGET_MONTH_COLUMN_NAME = "budget_month";
-    private static final String BUDGET_YEAR_COLUMN_NAME = "budget_year";
-    private static final String CREATED_AT_COLUMN_NAME = "created_at";
-    private static final String UPDATED_AT_COLUMN_NAME = "updated_at";
+    public static final String BUDGET_TABLE_NAME = "budgets";
+
+    public static final String USER_ID_COLUMN_NAME = "user_id";
+    public static final String CATEGORY_ID_COLUMN_NAME = "category_id";
+    public static final String AMOUNT_LIMIT_COLUMN_NAME = "amount_limit";
+    public static final String BUDGET_MONTH_COLUMN_NAME = "budget_month";
+    public static final String BUDGET_YEAR_COLUMN_NAME = "budget_year";
+    public static final String CREATED_AT_COLUMN_NAME = "created_at";
+    public static final String UPDATED_AT_COLUMN_NAME = "updated_at";
+
+    public static final String USER_CATEGORY_MONTH_YEAR_UNIQUE_CONSTRAINT = "uk_user_category_month_year";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -53,11 +61,11 @@ public class Budget {
     @Column(name = BUDGET_YEAR_COLUMN_NAME, nullable = false)
     private int budgetYear;
 
-    @Builder.Default
+    @CreatedDate
     @Column(name = CREATED_AT_COLUMN_NAME, nullable = false, updatable = false)
-    private Instant createdAt =  Instant.now();
+    private Instant createdAt;
 
-    @UpdateTimestamp
+    @LastModifiedDate
     @Column(name = UPDATED_AT_COLUMN_NAME, nullable = false)
     private Instant updatedAt;
 
