@@ -14,13 +14,20 @@ import java.util.UUID;
  * Represents an application user stored in the database.
  */
 @Entity
-@Table(name = "users")
+@Table(name = User.USER_TABLE_NAME)
 @Getter @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 public class User {
+
+    public static final String USER_TABLE_NAME = "users";
+
+    public static final String FULL_NAME_COLUMN_NAME = "full_name";
+    public static final String CREATED_AT_COLUMN_NAME = "created_at";
+    public static final String UPDATED_AT_COLUMN_NAME = "updated_at";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -31,7 +38,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "full_name",nullable = false)
+    @Column(name = FULL_NAME_COLUMN_NAME,nullable = false)
     private String fullName;
 
     @Enumerated(EnumType.STRING)
@@ -39,10 +46,10 @@ public class User {
     private Role role = Role.USER;
 
     @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = CREATED_AT_COLUMN_NAME, nullable = false, updatable = false)
     private Instant createdAt;
 
     @LastModifiedDate
-    @Column(name = "updated_at", nullable = false)
+    @Column(name = UPDATED_AT_COLUMN_NAME, nullable = false)
     private Instant updatedAt;
 }
