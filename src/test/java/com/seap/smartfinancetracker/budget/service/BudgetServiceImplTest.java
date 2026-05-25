@@ -17,6 +17,7 @@ import org.instancio.Select;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -89,10 +90,11 @@ class BudgetServiceImplTest {
     @Test
     @DisplayName("Should reactivate and update existing budget if it is inactive")
     void createBudget_ShouldReactivate_WhenInactiveBudgetExists() {
-        // Arrange
+        // 1. Arrange
         UUID userId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
-        BudgetCreateRequest request = new BudgetCreateRequest(categoryId, BigDecimal.valueOf(8000), 5, 2026);
+        BigDecimal newAmountLimit = BigDecimal.valueOf(8000);
+        BudgetCreateRequest request = new BudgetCreateRequest(categoryId, newAmountLimit, 5, 2026);
 
         Category category = mock(Category.class);
         when(category.isActive()).thenReturn(true);
@@ -101,22 +103,35 @@ class BudgetServiceImplTest {
         Budget existingInactiveBudget = Instancio.of(Budget.class)
                 .set(Select.field(Budget::isActive), false)
                 .create();
+
+        Budget savedBudget = Instancio.create(Budget.class);
         BudgetResponse expectedResponse = Instancio.create(BudgetResponse.class);
 
         when(categoryService.getCategoryEntity(userId, categoryId)).thenReturn(category);
-        when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(userId, categoryId, request.month(), request.year()))
+        when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(
+                userId, categoryId, request.month(), request.year()))
                 .thenReturn(Optional.of(existingInactiveBudget));
-        when(budgetRepository.save(existingInactiveBudget)).thenReturn(existingInactiveBudget);
-        when(budgetMapper.toResponse(existingInactiveBudget)).thenReturn(expectedResponse);
 
-        // Act
+        when(budgetRepository.save(any(Budget.class))).thenReturn(savedBudget);
+        when(budgetMapper.toResponse(savedBudget)).thenReturn(expectedResponse);
+
+        // 2. Act
         BudgetResponse actualResponse = budgetService.createBudget(userId, request);
 
-        // Assert
+        // 3. Assert Response
         assertNotNull(actualResponse);
-        assertTrue(existingInactiveBudget.isActive(), "Budget should be reactivated");
-        assertEquals(request.amountLimit(), existingInactiveBudget.getAmountLimit(), "Budget limit should be updated");
-        verify(budgetRepository, times(1)).save(existingInactiveBudget);
+        assertEquals(expectedResponse, actualResponse);
+
+        // 4. Capture & Verify Data
+        ArgumentCaptor<Budget> budgetCaptor = ArgumentCaptor.forClass(Budget.class);
+        verify(budgetRepository, times(1)).save(budgetCaptor.capture());
+
+        Budget reactivatedBudget = budgetCaptor.getValue();
+
+        assertTrue(reactivatedBudget.isActive(), "Budget should be reactivated (active = true)");
+        assertEquals(request.amountLimit(), reactivatedBudget.getAmountLimit(), "Budget limit should be updated to new value");
+        assertEquals(existingInactiveBudget.getId(), reactivatedBudget.getId(), "Budget ID should remain exactly the same");
+
         verify(budgetMapper, never()).toEntity(any(), any());
     }
 
@@ -183,23 +198,32 @@ class BudgetServiceImplTest {
         // Arrange
         UUID userId = UUID.randomUUID();
         UUID budgetId = UUID.randomUUID();
-        BudgetUpdateRequest updateRequest = new BudgetUpdateRequest(BigDecimal.valueOf(10000));
+        BigDecimal newAmountLimit = BigDecimal.valueOf(10000);
+        BudgetUpdateRequest updateRequest = new BudgetUpdateRequest(newAmountLimit);
 
         Budget existingBudget = Instancio.create(Budget.class);
+        Budget savedBudget = Instancio.create(Budget.class);
         BudgetResponse expectedResponse = Instancio.create(BudgetResponse.class);
 
         when(budgetRepository.findByUserIdAndId(userId, budgetId)).thenReturn(Optional.of(existingBudget));
-        when(budgetRepository.save(existingBudget)).thenReturn(existingBudget);
-        when(budgetMapper.toResponse(existingBudget)).thenReturn(expectedResponse);
+        when(budgetRepository.save(any())).thenReturn(savedBudget);
+        when(budgetMapper.toResponse(savedBudget)).thenReturn(expectedResponse);
 
         // Act
         BudgetResponse actualResponse = budgetService.updateBudget(userId, budgetId, updateRequest);
 
         // Assert
         assertNotNull(actualResponse);
-        assertEquals(updateRequest.amountLimit(), existingBudget.getAmountLimit());
         assertEquals(expectedResponse, actualResponse);
-        verify(budgetRepository, times(1)).save(existingBudget);
+
+        ArgumentCaptor<Budget> budgetCaptor = ArgumentCaptor.forClass(Budget.class);
+        verify(budgetRepository, times(1)).save(budgetCaptor.capture());
+
+        Budget updatedBudget = budgetCaptor.getValue();
+
+        assertEquals(newAmountLimit, updatedBudget.getAmountLimit(), "Amount limit should be updated");
+        assertEquals(existingBudget.getId(), updatedBudget.getId(), "Budget ID should remain the same");
+        assertEquals(existingBudget.getCreatedAt(), updatedBudget.getCreatedAt(), "Created At should not change");
     }
 
     @Test
@@ -290,8 +314,12 @@ class BudgetServiceImplTest {
         budgetService.deleteBudget(userId, budgetId);
 
         // Assert
-        assertFalse(existingBudget.isActive(), "Budget should be marked as inactive");
-        verify(budgetRepository, times(1)).save(existingBudget);
+        ArgumentCaptor<Budget> budgetCaptor = ArgumentCaptor.forClass(Budget.class);
+        verify(budgetRepository, times(1)).save(budgetCaptor.capture());
+        Budget savedBudget = budgetCaptor.getValue();
+
+        assertFalse(savedBudget.isActive(), "Budget should be marked as inactive");
+        verify(budgetRepository, times(1)).save(savedBudget);
     }
     //</editor-fold>
 

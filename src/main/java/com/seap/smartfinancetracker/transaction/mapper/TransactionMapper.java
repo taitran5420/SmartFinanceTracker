@@ -4,6 +4,7 @@ import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.dto.TransactionResponse;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
+import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.user.entity.User;
 import org.springframework.stereotype.Component;
 
@@ -30,16 +31,16 @@ public class TransactionMapper {
      * @return a new {@link Transaction} entity ready to be persisted,
      *         or {@code null} if the request payload is null
      */
-    public Transaction toEntity(UUID userId, TransactionCreateRequest transactionCreateRequest) {
+    public Transaction toEntity(UUID userId, TransactionCreateRequest transactionCreateRequest, Category category, TransactionType transactionType) {
         if (transactionCreateRequest == null) {
             return null;
         }
 
         return Transaction.builder()
                 .user(User.builder().id(userId).build())
-                .category(Category.builder().id(transactionCreateRequest.categoryId()).build())
+                .category(category)
                 .amount(transactionCreateRequest.amount())
-                .transactionType(transactionCreateRequest.transactionType())
+                .transactionType(transactionType)
                 .note(transactionCreateRequest.note())
                 .idempotencyKey(transactionCreateRequest.idempotencyKey())
                 .active(true)

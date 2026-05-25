@@ -21,10 +21,10 @@ import java.util.UUID;
                 columnNames = {Budget.USER_ID_COLUMN_NAME, Budget.CATEGORY_ID_COLUMN_NAME,
                         Budget.BUDGET_MONTH_COLUMN_NAME, Budget.BUDGET_YEAR_COLUMN_NAME})
 })
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter @Setter
+@Getter
 @EntityListeners(AuditingEntityListener.class)
 public class Budget {
 

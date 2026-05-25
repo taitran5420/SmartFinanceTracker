@@ -87,9 +87,11 @@ public class BudgetServiceImpl implements BudgetService {
     public BudgetResponse updateBudget(UUID userId, UUID budgetId, BudgetUpdateRequest budgetUpdateRequest) {
         Budget existingBudget = getBudgetOrThrow(userId, budgetId);
 
-        existingBudget.setAmountLimit(budgetUpdateRequest.amountLimit());
+        Budget modifiedBudget = existingBudget.toBuilder()
+                .amountLimit(budgetUpdateRequest.amountLimit())
+                .build();
 
-        Budget updatedBudget = budgetRepository.save(existingBudget);
+        Budget updatedBudget = budgetRepository.save(modifiedBudget);
 
         return budgetMapper.toResponse(updatedBudget);
     }
@@ -129,8 +131,11 @@ public class BudgetServiceImpl implements BudgetService {
     public void deleteBudget(UUID userId, UUID id) {
         Budget existingBudget = getBudgetOrThrow(userId, id);
 
-        existingBudget.setActive(false);
-        budgetRepository.save(existingBudget);
+        Budget inactiveBudget = existingBudget.toBuilder()
+                .active(false)
+                .build();
+
+        budgetRepository.save(inactiveBudget);
     }
 
     /**
@@ -181,9 +186,12 @@ public class BudgetServiceImpl implements BudgetService {
         if (existingBudget.isActive()) {
             throw new BusinessException(BudgetErrorCode.ACTIVE_BUDGET_EXISTS);
         }
-        existingBudget.setActive(true);
-        existingBudget.setAmountLimit(newAmountLimit);
-        return budgetMapper.toResponse(budgetRepository.save(existingBudget));
+
+        Budget reactiveBudget = existingBudget.toBuilder()
+                .active(true)
+                .amountLimit(newAmountLimit)
+                .build();
+        return budgetMapper.toResponse(budgetRepository.save(reactiveBudget));
     }
 
     private BudgetSummaryResponse calculateAndMapToSummary(Budget budget, BigDecimal budgetSpent) {

@@ -18,6 +18,7 @@ import org.instancio.Select;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -128,7 +129,7 @@ class TransactionServiceImplTest {
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
         when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
-        when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
+        when(transactionMapper.toEntity(userId, request, category, type)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
         when(categoryService.getCategoryEntity(eq(userId), eq(categoryId))).thenReturn(category);
@@ -171,7 +172,7 @@ class TransactionServiceImplTest {
 
         when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
         when(categoryRepository.findByCode(eq(systemDefaultCategoryCode))).thenReturn(Optional.of(defaultCategory));
-        when(transactionMapper.toEntity(userId, request)).thenReturn(mappedEntity);
+        when(transactionMapper.toEntity(userId, request, defaultCategory, type)).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
 
@@ -275,12 +276,17 @@ class TransactionServiceImplTest {
                 .set(Select.field("categoryId"), null) // No category change
                 .create();
 
-        Transaction existingTransaction = Instancio.create(Transaction.class);
+        Transaction existingTransaction = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getId), transactionId)
+                .set(Select.field(Transaction::getTransactionType), TransactionType.INCOME)
+                .create();
+
+        Transaction savedTransaction = Instancio.create(Transaction.class);
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
         when(transactionRepository.findByIdAndUserId(transactionId, userId)).thenReturn(Optional.of(existingTransaction));
-        when(transactionRepository.save(existingTransaction)).thenReturn(existingTransaction);
-        when(transactionMapper.toResponse(existingTransaction)).thenReturn(expectedResponse);
+        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedTransaction);
+        when(transactionMapper.toResponse(savedTransaction)).thenReturn(expectedResponse);
 
         // 2. Act
         TransactionResponse actualResponse = transactionService.updateTransaction(userId, transactionId, request);
@@ -288,9 +294,15 @@ class TransactionServiceImplTest {
         // 3. Assert
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
-        assertEquals(newAmount, existingTransaction.getAmount());
-        assertEquals(newNote, existingTransaction.getNote());
-        verify(transactionRepository, times(1)).save(existingTransaction);
+
+        ArgumentCaptor<Transaction> transactionArgumentCaptor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository, times(1)).save(transactionArgumentCaptor.capture());
+
+        Transaction capturedTx = transactionArgumentCaptor.getValue();
+
+        assertEquals(newAmount, capturedTx.getAmount(), "Amount should be updated in the new copy");
+        assertEquals(newNote, capturedTx.getNote(), "Note should be updated in the new copy");
+        assertEquals(existingTransaction.getId(), capturedTx.getId(), "Transaction ID must remain exactly the same");
     }
     //</editor-fold>
 
@@ -312,8 +324,13 @@ class TransactionServiceImplTest {
         transactionService.deleteTransaction(userId, transactionId);
 
         // 3. Assert
-        assertFalse(existingTransaction.isActive(), "Transaction should be deactivated");
-        verify(transactionRepository, times(1)).save(existingTransaction);
+        ArgumentCaptor<Transaction> transactionArgumentCaptor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository, times(1)).save(transactionArgumentCaptor.capture());
+
+        Transaction deactivatedTx = transactionArgumentCaptor.getValue();
+
+        assertFalse(deactivatedTx.isActive(), "The new transaction copy should be deactivated");
+        assertEquals(existingTransaction.getId(), deactivatedTx.getId(), "Transaction ID must remain exactly the same");
     }
 
     @Test
@@ -396,7 +413,7 @@ class TransactionServiceImplTest {
 
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
-        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class), any(), any())).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
 
         // Expect warningMessage to be null since usage is under the 90% threshold
@@ -450,7 +467,7 @@ class TransactionServiceImplTest {
 
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
-        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class), any(), any())).thenReturn(mappedEntity);
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
 
         when(transactionMapper.toResponse(eq(savedEntity), nullable(String.class))).thenReturn(expectedResponse);
@@ -497,13 +514,14 @@ class TransactionServiceImplTest {
                 .set(Select.field(Transaction::getUser), User.builder().id(userId).build())
                 .set(Select.field(Transaction::getCategory), Category.builder().id(categoryId).build())
                 .set(Select.field(Transaction::getAmount), newAmount)
+                .set(Select.field(Transaction::isOverBudget), true)
                 .set(Select.field(Transaction::getTransactionType),  TransactionType.EXPENSE)
                 .create();
 
         TransactionResponse expectedResponse = Instancio.create(TransactionResponse.class);
 
-        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class))).thenReturn(mappedEntity);
-        when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
+        when(transactionMapper.toEntity(eq(userId), any(TransactionCreateRequest.class), any(), any())).thenReturn(mappedEntity);
+        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedEntity);
 
         // Expect a warning message indicating the budget has been exceeded
         String expectedWarning = "Transaction accepted, but you have exceeded your budget for this category.";
@@ -521,7 +539,15 @@ class TransactionServiceImplTest {
         // 3. Assert
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
-        assertTrue(mappedEntity.isOverBudget(), "Transaction MUST be marked as over-budget");
+
+        // 4. Capture & Verify Immutable Data
+        ArgumentCaptor<Transaction> transactionArgumentCaptor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository, times(1)).save(transactionArgumentCaptor.capture());
+
+        Transaction capturedTx = transactionArgumentCaptor.getValue();
+
+        assertTrue(capturedTx.isOverBudget(), "Transaction MUST be marked as over-budget in the newly built copy");
+        assertEquals(newAmount, capturedTx.getAmount(), "Amount must remain correct");
     }
 
     /**
