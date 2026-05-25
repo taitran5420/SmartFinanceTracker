@@ -3,14 +3,18 @@ package com.seap.smartfinancetracker.auth.service;
 import com.seap.smartfinancetracker.auth.dto.AuthResponse;
 import com.seap.smartfinancetracker.auth.dto.LoginRequest;
 import com.seap.smartfinancetracker.auth.dto.RegisterRequest;
+import com.seap.smartfinancetracker.auth.exception.AuthErrorCode;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.user.entity.User;
 import com.seap.smartfinancetracker.user.enums.Role;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,8 +34,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+
+        if (request == null || StringUtils.isBlank(request.email()) || StringUtils.isBlank(request.password())) {
+            throw new BusinessException(AuthErrorCode.INVALID_INPUT);
+        }
+
         if (userRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Email already exists");
+            throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
         User user = User.builder()
@@ -52,12 +61,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse authenticate(LoginRequest request) {
-        authenticationManager.authenticate(
-          new UsernamePasswordAuthenticationToken(request.email(), request.password())
-        );
+        if (request == null || StringUtils.isBlank(request.email()) || StringUtils.isBlank(request.password())) {
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+        }
+
+        try {
+            authenticationManager.authenticate(
+              new UsernamePasswordAuthenticationToken(request.email(), request.password())
+            );
+        } catch (AuthenticationException e) {
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+        }
 
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password."));
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         return AuthResponse.builder()
                 .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(user)))
