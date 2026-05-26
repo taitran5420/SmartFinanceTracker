@@ -4,6 +4,9 @@ import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.security.token.JwtAuthenticationToken;
 import io.jsonwebtoken.JwtException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -11,35 +14,34 @@ import org.springframework.security.authentication.AuthenticationServiceExceptio
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 /**
- * Custom Authentication provider responsible for validating JWT tokens and building authenticated user context.
+ * Custom Authentication provider responsible for validating JWT tokens and building an authenticated user context.
  *
- * <p>This provider performs the following steps:
+ * <p>This provider implements a fully <b>stateless</b> authentication mechanism by performing the following steps:
  * <ul>
- *     <li>Validates that the authentication request is a {@link JwtAuthenticationToken}</li>
- *     <li>Extracts the JWT token and parses the username (email)</li>
- *     <li>Loads user details from the database</li>
- *     <li>Validates the token against user details</li>
- *     <li>Returns an authenticated {@link JwtAuthenticationToken} if valid</li>
+ * <li>Validates that the incoming authentication request is a {@link JwtAuthenticationToken}.</li>
+ * <li>Cryptographically validates the JWT signature and expiration via {@link JwtService}.</li>
+ * <li>Extracts user identity and role claims directly from the token payload to construct a {@link UserPrincipal}
+ * (bypassing redundant database lookups to optimize performance).</li>
+ * <li>Returns a fully authenticated {@link JwtAuthenticationToken} containing the user's authorities.</li>
  * </ul>
  *
- * <p>If the token is invalid, expired, or the user cannot be found,
- * a {@link BadCredentialsException} is thrown.
+ * <p>If the token is mathematically invalid, expired, or malformed,
+ * a {@link BadCredentialsException} is thrown to safely halt the authentication process.
  */
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationProvider implements AuthenticationProvider {
 
-    private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
+    private static final String UNSUPPORTED_AUTHENTICATION_TYPE_MESSAGE = "Unsupported authentication type";
+    private static final String INVALID_TOKEN_MESSAGE = "Invalid or expired JWT token";
+    private static final String INVALID_TOKEN_PAYLOAD_MESSAGE = "Invalid JWT payload structure";
 
-    public JwtAuthenticationProvider(JwtService jwtService, UserDetailsService userDetailsService) {
-        this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
-    }
+    private final JwtService jwtService;
 
     /**
      * Authenticates the provided JWT authentication request.
@@ -52,28 +54,27 @@ public class JwtAuthenticationProvider implements AuthenticationProvider {
     public @Nullable Authentication authenticate(@NonNull Authentication authentication) throws AuthenticationException {
 
         if (!(authentication instanceof JwtAuthenticationToken jwtAuthenticationToken)) {
-            throw new AuthenticationServiceException("Unsupported authentication type");
+            throw new AuthenticationServiceException(UNSUPPORTED_AUTHENTICATION_TYPE_MESSAGE);
         }
 
         String rawToken = jwtAuthenticationToken.getRawToken();
 
         try {
-            String email = jwtService.extractUsername(rawToken);
-
-            if (email == null || email.isEmpty()) {
-                throw new BadCredentialsException("Invalid JWT: No subject found");
+            if (!jwtService.validateToken(rawToken)) {
+                throw new BadCredentialsException(INVALID_TOKEN_MESSAGE);
             }
 
-            UserPrincipal userPrincipal = (UserPrincipal) userDetailsService.loadUserByUsername(email);
+            UserPrincipal userPrincipal = jwtService.extractUserPrincipal(rawToken);
 
-            if (!jwtService.validateToken(rawToken, userPrincipal)) {
-                throw new BadCredentialsException("Invalid or expired JWT token");
+            if (userPrincipal == null || StringUtils.isBlank(userPrincipal.getUsername())) {
+                throw new BadCredentialsException(INVALID_TOKEN_PAYLOAD_MESSAGE);
             }
 
             return new JwtAuthenticationToken(userPrincipal, rawToken, userPrincipal.getAuthorities());
 
         } catch (UsernameNotFoundException | JwtException ex) {
-            throw new BadCredentialsException("Invalid JWT token");
+            log.error("JWT Parsing error: {}", ex.getMessage());
+            throw new BadCredentialsException(INVALID_TOKEN_MESSAGE);
         }
     }
 

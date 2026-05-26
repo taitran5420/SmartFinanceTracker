@@ -30,6 +30,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final UserPrincipalMapper userPrincipalMapper;
 
     @Override
     @Transactional
@@ -53,7 +54,7 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(user);
 
         return AuthResponse.builder()
-                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(savedUser)))
+                .token(jwtService.generateToken(userPrincipalMapper.toUserPrincipal(savedUser)))
                 .expiresIn(jwtService.getExpirationTime())
                 .build();
     }
@@ -77,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         return AuthResponse.builder()
-                .token(jwtService.generateToken(UserPrincipalMapper.toUserPrincipal(user)))
+                .token(jwtService.generateToken(userPrincipalMapper.toUserPrincipal(user)))
                 .expiresIn(jwtService.getExpirationTime())
                 .build();
     }

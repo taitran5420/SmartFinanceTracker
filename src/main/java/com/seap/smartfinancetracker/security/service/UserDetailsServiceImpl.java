@@ -18,12 +18,13 @@ import org.springframework.stereotype.Service;
 public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final UserPrincipalMapper userPrincipalMapper;
 
     @Override
     public @NonNull UserDetails loadUserByUsername(@NonNull String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException(email));
 
-        return UserPrincipalMapper.toUserPrincipal(user);
+        return userPrincipalMapper.toUserPrincipal(user);
     }
 }

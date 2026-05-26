@@ -2,40 +2,32 @@ package com.seap.smartfinancetracker.security.service;
 
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.util.Base64;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.*;
 
 /**
  * Implementation of JWT service for JWT token generation, parsing, and validation.
  */
+@Slf4j
 @Service
 public class JwtServiceImpl implements JwtService {
+
+    public static final String ID_CLAIMS_KEY = "id";
+    public static final String ROLE_CLAIMS_KEY = "roles";
 
     @Value("${jwt.secret}")
     private String jwtSecretKey;
 
     @Value("${jwt.expiration}")
     private long jwtExpirationInMs;
-
-    @Override
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
-
-    @Override
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = getClaimsFromToken(token);
-        return claimsResolver.apply(claims);
-    }
 
     @Override
     public String generateToken(UserPrincipal userPrincipal) {
@@ -48,9 +40,39 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
-    public boolean validateToken(String token, UserPrincipal userPrincipal) {
-        final String username = extractUsername(token);
-        return (username.equals(userPrincipal.getUsername()) && !validateExpirationToken(token));
+    public boolean validateToken(String token) {
+        try {
+            getClaimsFromToken(token);
+            return true;
+        } catch (JwtException e) {
+            log.warn("JWT Validation failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b>
+     * This method extracts standard and custom claims directly from the validated JWT.
+     * By utilizing custom claims ({@code ID_CLAIMS_KEY} and {@code ROLE_CLAIMS_KEY}),
+     * it reconstructs the complete {@link UserPrincipal} without requiring any subsequent
+     * database lookups. This approach maximizes the performance of the stateless authentication filter.
+     * </p>
+     */
+    @Override
+    public UserPrincipal extractUserPrincipal(String token) {
+        Claims claims = getClaimsFromToken(token);
+
+        String email = claims.getSubject();
+        String idStr = claims.get(ID_CLAIMS_KEY, String.class);
+        String role = claims.get(ROLE_CLAIMS_KEY, String.class);
+
+        return UserPrincipal.builder()
+                .id(UUID.fromString(idStr))
+                .email(email)
+                .authorities(Collections.singletonList(new SimpleGrantedAuthority(role)))
+                .build();
     }
 
     @Override
@@ -58,17 +80,13 @@ public class JwtServiceImpl implements JwtService {
         return jwtExpirationInMs;
     }
 
-    private boolean validateExpirationToken(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
     private String buildToken(Map<String, Object> extraClaims, UserPrincipal userPrincipal) {
         Map<String, Object> claims = new HashMap<>(extraClaims);
-        claims.put("id", userPrincipal.getId().toString());
+        claims.put(ID_CLAIMS_KEY, userPrincipal.getId().toString());
+
+        if (!userPrincipal.getAuthorities().isEmpty()) {
+            claims.put(ROLE_CLAIMS_KEY, userPrincipal.getAuthorities().iterator().next().getAuthority());
+        }
 
         return Jwts.builder()
                 .claims(claims)
