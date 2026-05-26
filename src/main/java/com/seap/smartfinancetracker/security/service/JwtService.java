@@ -1,32 +1,13 @@
 package com.seap.smartfinancetracker.security.service;
 
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
-import io.jsonwebtoken.Claims;
 
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Service responsible for JWT token generation, parsing, and validation.
  */
 public interface JwtService {
-    /**
-     * Extracts the username/email (subject) from the JWT token.
-     *
-     * @param token the JWT token
-     * @return the username/email in the token
-     */
-    String extractUsername(String token);
-
-    /**
-     * Extracts a specific claim from the JWT token.
-     *
-     * @param token the JWT token
-     * @param claimsResolver function to resolve the desired claim
-     * @param <T> type of the claim
-     * @return extracted claim value
-     */
-    <T> T extractClaim(String token, Function<Claims, T> claimsResolver);
 
     /**
      * Generates a JWT token for the given user principal.
@@ -46,13 +27,30 @@ public interface JwtService {
     String generateToken(Map<String, Object> extraClaims, UserPrincipal userPrincipal);
 
     /**
-     * Validates whether the JWT token is valid for the given user.
+     * Validates whether the JWT token is valid
      *
      * @param token the JWT token
-     * @param userPrincipal the user to validate against
      * @return true if token is valid, false otherwise
      */
-    boolean validateToken(String token, UserPrincipal userPrincipal);
+    boolean validateToken(String token);
+
+    /**
+     * Extracts and constructs a {@link UserPrincipal} from a given JSON Web Token (JWT).
+     * <p>
+     * This method is a core component of the stateless authentication flow. It is responsible
+     * for parsing the provided JWT, cryptographically validating its signature, and mapping
+     * the payload claims (such as user ID, email, and roles) into a Spring Security compliant
+     * {@link UserPrincipal} object. This resulting principal is subsequently used to populate
+     * the application's {@code SecurityContext}.
+     * </p>
+     *
+     * @param token the raw JWT string representing the user's session (typically extracted
+     * from the HTTP Authorization header with the "Bearer " prefix removed)
+     * @return a fully populated {@link UserPrincipal} derived from the token's payload
+     * @throws io.jsonwebtoken.JwtException (or equivalent runtime exception) if the token
+     * is mathematically invalid, expired, or tampered with
+     */
+    UserPrincipal extractUserPrincipal(String token);
 
     /**
      * Returns the JWT token expiration time in seconds.

@@ -6,6 +6,7 @@ import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -64,6 +65,9 @@ class BudgetControllerIntegrationTest {
     private BudgetRepository budgetRepository;
 
     @Autowired
+    private UserPrincipalMapper userPrincipalMapper;
+
+    @Autowired
     private JwtService jwtService;
 
     private String validToken;
@@ -93,10 +97,7 @@ class BudgetControllerIntegrationTest {
         testExpenseCategory = categoryRepository.save(testExpenseCategory);
 
         // Create JWT Test Token
-        UserPrincipal userPrincipal = UserPrincipal.builder()
-                .id(testUser.getId())
-                .email(testUser.getEmail())
-                .build();
+        UserPrincipal userPrincipal = userPrincipalMapper.toUserPrincipal(testUser);
         validToken = jwtService.generateToken(new HashMap<>(), userPrincipal);
     }
     //</editor-fold>
