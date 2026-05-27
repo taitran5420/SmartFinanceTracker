@@ -22,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -78,7 +79,7 @@ public class TransactionServiceImpl implements TransactionService {
      * </p>
      */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TransactionResponse createTransaction(UUID userId, TransactionCreateRequest transactionCreateRequest) {
         if (transactionCreateRequest.idempotencyKey() != null && transactionRepository.existsByIdempotencyKey(transactionCreateRequest.idempotencyKey())) {
             log.warn("Duplicate transaction attempt detected with idempotency key: {}", transactionCreateRequest.idempotencyKey());

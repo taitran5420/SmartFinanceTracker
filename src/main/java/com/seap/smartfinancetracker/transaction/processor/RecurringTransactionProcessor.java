@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.transaction.processor;
 
+import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;
@@ -11,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -24,6 +27,7 @@ public class RecurringTransactionProcessor {
     private final RecurringTransactionMapper recurringTransactionMapper;
     private final ApplicationEventPublisher eventPublisher;
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processSingleRecurringTransaction(RecurringTransaction recurringTransaction) {
         UUID userId = recurringTransaction.getUser().getId();
         try {
@@ -32,7 +36,7 @@ public class RecurringTransactionProcessor {
 
             transactionService.createTransaction(userId, transactionCreateRequest);
             log.info("Auto-executed transaction {} for user {}", recurringTransaction.getId(), userId);
-        } catch (IllegalArgumentException e) {
+        } catch (BusinessException e) {
             log.warn("Skipped transaction {} due to rule violation: {}", recurringTransaction.getId(), e.getMessage());
 
             eventPublisher.publishEvent(new OverdraftAlertEvent(
@@ -45,26 +49,26 @@ public class RecurringTransactionProcessor {
         }
 
         updateTransactionLifecycle(recurringTransaction);
-
-        recurringTransactionRepository.save(recurringTransaction);
     }
 
     private void updateTransactionLifecycle(RecurringTransaction recurringTransaction) {
+        RecurringTransaction.RecurringTransactionBuilder builder = recurringTransaction.toBuilder();
+
         if (recurringTransaction.getFrequency() == Frequency.ONCE) {
-            recurringTransaction.setActive(false);
-
+            builder.active(false);
             log.info("Scheduled ONE-TIME transaction {} completed and is now inactive", recurringTransaction.getId());
-            return;
+        }
+        else {
+            LocalDate nextDate = calculateNextOccurrence(recurringTransaction.getNextOccurrenceDate(), recurringTransaction.getFrequency());
+            builder.nextOccurrenceDate(nextDate);
+
+            if (recurringTransaction.getEndDate() != null && nextDate.isAfter(recurringTransaction.getEndDate())) {
+                builder.active(false);
+                log.info("Recurring transaction {} reached its end date and is now inactive", recurringTransaction.getId());
+            }
         }
 
-        LocalDate nextDate = calculateNextOccurrence(recurringTransaction.getNextOccurrenceDate(),
-                recurringTransaction.getFrequency());
-        recurringTransaction.setNextOccurrenceDate(nextDate);
-
-        if (recurringTransaction.getEndDate() != null && nextDate.isAfter(recurringTransaction.getEndDate())) {
-            recurringTransaction.setActive(false);
-            log.info("Recurring transaction {} reached its end date and is now inactive", recurringTransaction.getId());
-        }
+        recurringTransactionRepository.save(builder.build());
     }
 
     private LocalDate calculateNextOccurrence(LocalDate current, Frequency frequency) {

@@ -7,8 +7,10 @@ import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,25 +19,49 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "recurring_transactions", indexes = {
-        @Index(name = "idx_recurring_next_datetime", columnList = "next_occurrence_date, execution_time, active"),
-        @Index(name = "idx_recurring_user_next_date", columnList = "user_id, next_occurrence_date, active")
+@Table(name = RecurringTransaction.RECURRING_TRANSACTION_TABLE_NAME, indexes = {
+        @Index(name = RecurringTransaction.RECURRING_NEXT_OCCURRENCE_DATE_INDEX,
+                columnList = RecurringTransaction.NEXT_OCCURRENCE_DATE_COLUMN_NAME + ", " +
+                        RecurringTransaction.EXECUTION_TIME_COLUMN_NAME + ", " +
+                        RecurringTransaction.ACTIVE_COLUMN_NAME),
+        @Index(name = RecurringTransaction.RECURRING_USER_NEXT_DATE_INDEX,
+                columnList = RecurringTransaction.USER_ID_COLUMN_NAME + ", " +
+                        RecurringTransaction.NEXT_OCCURRENCE_DATE_COLUMN_NAME + ", " +
+                        RecurringTransaction.ACTIVE_COLUMN_NAME)
 })
-@Builder
-@Getter @Setter
+@Builder(toBuilder = true)
+@Getter
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class RecurringTransaction {
+
+    public static final String RECURRING_TRANSACTION_TABLE_NAME = "recurring_transactions";
+
+    public static final String USER_ID_COLUMN_NAME = "user_id";
+    public static final String CATEGORY_ID_COLUMN_NAME = "category_id";
+    public static final String TRANSACTION_TYPE_COLUMN_NAME = "transaction_type";
+    public static final String START_DATE_COLUMN_NAME = "start_date";
+    public static final String END_DATE_COLUMN_NAME = "end_date";
+    public static final String ACTIVE_COLUMN_NAME = "active";
+    public static final String NEXT_OCCURRENCE_DATE_COLUMN_NAME = "next_occurrence_date";
+    public static final String EXECUTION_TIME_COLUMN_NAME = "execution_time";
+    public static final String CREATED_AT_COLUMN_NAME = "created_at";
+    public static final String UPDATED_AT_COLUMN_NAME = "updated_at";
+
+    public static final String RECURRING_NEXT_OCCURRENCE_DATE_INDEX = "idx_recurring_next_datetime";
+    public static final String RECURRING_USER_NEXT_DATE_INDEX = "idx_recurring_user_next_date";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = USER_ID_COLUMN_NAME, nullable = false)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = CATEGORY_ID_COLUMN_NAME, nullable = false)
     private Category category;
 
     @Column(nullable = false, precision = 19, scale = 4)
@@ -43,7 +69,7 @@ public class RecurringTransaction {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "transaction_type", nullable = false)
+    @Column(name = TRANSACTION_TYPE_COLUMN_NAME, nullable = false)
     private TransactionType transactionType;
 
     @Column(columnDefinition = "TEXT")
@@ -54,27 +80,27 @@ public class RecurringTransaction {
     @Column(nullable = false)
     private Frequency frequency;
 
-    @Column(name = "start_date", nullable = false)
+    @Column(name = START_DATE_COLUMN_NAME, nullable = false)
     private LocalDate startDate;
 
-    @Column(name = "end_date")
+    @Column(name = END_DATE_COLUMN_NAME)
     private LocalDate endDate;
 
-    @Column(name = "next_occurrence_date", nullable = false)
+    @Column(name = NEXT_OCCURRENCE_DATE_COLUMN_NAME, nullable = false)
     private LocalDate nextOccurrenceDate;
 
-    @Column(name = "execution_time", nullable = false)
+    @Column(name = EXECUTION_TIME_COLUMN_NAME, nullable = false)
     private LocalTime executionTime;
 
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
 
-    @Builder.Default
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    @CreatedDate
+    @Column(name = CREATED_AT_COLUMN_NAME, nullable = false, updatable = false)
+    private Instant createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @LastModifiedDate
+    @Column(name = UPDATED_AT_COLUMN_NAME)
     private Instant updatedAt;
 }

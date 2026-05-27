@@ -5,27 +5,43 @@ import com.seap.smartfinancetracker.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "notifications", indexes = {
-        @Index(name = "idx_notifications_user_unread", columnList = "user_id, is_read")
+@Table(name = Notification.NOTIFICATION_TABLE_NAME, indexes = {
+        @Index(name = Notification.NOTIFICATION_USER_UNREAD_INDEX,
+                columnList = Notification.USER_ID_COLUMN_NAME + ", " +
+                Notification.IS_READ_COLUMN_NAME)
 })
-@Getter @Setter
-@Builder
+@Getter
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class Notification {
+
+    public static final String NOTIFICATION_TABLE_NAME = "notifications";
+
+    public static final String USER_ID_COLUMN_NAME = "user_id";
+    public static final String Notification_TYPE_COLUMN_NAME = "notification_type";
+    public static final String IS_READ_COLUMN_NAME = "is_read";
+    public static final String CREATED_AT_COLUMN_NAME = "created_at";
+    public static final String UPDATED_AT_COLUMN_NAME = "updated_at";
+
+    public static final String NOTIFICATION_USER_UNREAD_INDEX = "idx_notifications_user_unread";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = USER_ID_COLUMN_NAME, nullable = false)
     private User user;
 
     @Column(nullable = false)
@@ -36,18 +52,18 @@ public class Notification {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "notification_type", nullable = false)
+    @Column(name = Notification_TYPE_COLUMN_NAME, nullable = false)
     private NotificationType notificationType;
 
     @Builder.Default
-    @Column(name = "is_read", nullable = false)
+    @Column(name = IS_READ_COLUMN_NAME, nullable = false)
     private boolean isRead = false;
 
-    @Builder.Default
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    @CreatedDate
+    @Column(name = CREATED_AT_COLUMN_NAME, nullable = false, updatable = false)
+    private Instant createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @LastModifiedDate
+    @Column(name = UPDATED_AT_COLUMN_NAME)
     private Instant updatedAt;
 }
