@@ -23,6 +23,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @ActiveProfiles("test")
+@SuppressWarnings("unused")
 class TransactionServiceImplTest {
     //<editor-fold desc="Setup & Configurations">
     @Mock
@@ -57,6 +59,9 @@ class TransactionServiceImplTest {
 
     @Mock
     private CategoryService categoryService;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
     private TransactionServiceImpl transactionService;

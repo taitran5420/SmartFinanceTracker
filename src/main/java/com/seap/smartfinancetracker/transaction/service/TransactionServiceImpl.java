@@ -7,6 +7,7 @@ import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -18,6 +19,7 @@ import com.seap.smartfinancetracker.user.exception.UserErrorCode;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
@@ -53,6 +55,8 @@ public class TransactionServiceImpl implements TransactionService {
     private final BudgetRepository budgetRepository;
 
     private final TransactionMapper transactionMapper;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final String DEFAULT_EXPENSE_CODE = "SYS_OTHER_EXPENSE";
     private static final String DEFAULT_INCOME_CODE = "SYS_OTHER_INCOME";
@@ -113,6 +117,11 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+
+        eventPublisher.publishEvent(new TransactionCreatedEvent(
+                userId, category.getCategoryName(), savedTransaction.getAmount(), savedTransaction.getTransactionType()
+        ));
+
         return transactionMapper.toResponse(savedTransaction, warningMessage);
     }
 

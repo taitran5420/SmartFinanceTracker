@@ -1,5 +1,5 @@
 -- Create Enum for notification types
-CREATE TYPE notification_type_enum AS ENUM ('OVERDRAFT_ALERT', 'BUDGET_WARNING', 'SYSTEM_UPDATE', 'RECURRING_INFO');
+CREATE TYPE notification_type_enum AS ENUM ('OVERDRAFT_ALERT', 'BUDGET_WARNING', 'SYSTEM_UPDATE', 'RECURRING_INFO', 'TRANSACTION_SUCCESS');
 
 -- Create notifications table for In-App storage
 CREATE TABLE notifications

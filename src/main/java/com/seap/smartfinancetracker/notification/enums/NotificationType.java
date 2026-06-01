@@ -4,5 +4,6 @@ public enum NotificationType {
     OVERDRAFT_ALERT,
     BUDGET_WARNING,
     SYSTEM_UPDATE,
-    RECURRING_INFO
+    RECURRING_INFO,
+    TRANSACTION_SUCCESS
 }
