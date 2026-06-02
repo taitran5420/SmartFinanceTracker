@@ -27,7 +27,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -88,6 +90,9 @@ class TransactionControllerIntegrationTest {
 
     @Autowired
     private UserPrincipalMapper userPrincipalMapper;
+
+    @MockitoBean
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     @Autowired
     private JwtService jwtService;

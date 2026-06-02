@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.transaction.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
@@ -23,10 +24,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -61,7 +62,10 @@ class TransactionServiceImplTest {
     private CategoryService categoryService;
 
     @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     @InjectMocks
     private TransactionServiceImpl transactionService;

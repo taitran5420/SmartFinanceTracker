@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.transaction.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
@@ -19,10 +21,10 @@ import com.seap.smartfinancetracker.user.exception.UserErrorCode;
 import com.seap.smartfinancetracker.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +58,8 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionMapper transactionMapper;
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
 
     private static final String DEFAULT_EXPENSE_CODE = "SYS_OTHER_EXPENSE";
     private static final String DEFAULT_INCOME_CODE = "SYS_OTHER_INCOME";
@@ -118,10 +121,18 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction savedTransaction = transactionRepository.save(transaction);
 
-        eventPublisher.publishEvent(new TransactionCreatedEvent(
+        TransactionCreatedEvent transactionCreatedEvent = new TransactionCreatedEvent(
                 userId, category.getCategoryName(), savedTransaction.getAmount(), savedTransaction.getTransactionType()
-        ));
+        );
 
+        try {
+            String jsonPayload = objectMapper.writeValueAsString(transactionCreatedEvent);
+            kafkaTemplate.send("transaction-created-topic", jsonPayload);
+            log.info("Published TransactionCreatedEvent to Kafka topic 'transaction-created-topic' for user: {}", userId);
+
+        } catch (JsonProcessingException e) {
+            log.error("Failed to convert event to JSON for user: {}", userId, e);
+        }
         return transactionMapper.toResponse(savedTransaction, warningMessage);
     }
 
