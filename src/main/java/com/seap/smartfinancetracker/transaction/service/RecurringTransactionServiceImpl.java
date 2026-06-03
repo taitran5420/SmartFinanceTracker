@@ -1,7 +1,15 @@
 package com.seap.smartfinancetracker.transaction.service;
 
+import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
+import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.transaction.dto.RecurringTransactionCreateRequest;
+import com.seap.smartfinancetracker.transaction.dto.RecurringTransactionResponse;
+import com.seap.smartfinancetracker.transaction.dto.RecurringTransactionUpdateRequest;
 import com.seap.smartfinancetracker.transaction.dto.UpcomingRecurringResponse;
 import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;
+import com.seap.smartfinancetracker.transaction.exception.RecurringTransactionErrorCode;
 import com.seap.smartfinancetracker.transaction.mapper.RecurringTransactionMapper;
 import com.seap.smartfinancetracker.transaction.processor.RecurringTransactionProcessor;
 import com.seap.smartfinancetracker.transaction.repository.RecurringTransactionRepository;
@@ -22,8 +30,101 @@ import java.util.stream.Collectors;
 public class RecurringTransactionServiceImpl implements RecurringTransactionService {
 
     private final RecurringTransactionRepository recurringTransactionRepository;
+    private final CategoryRepository categoryRepository;
+
     private final RecurringTransactionMapper recurringTransactionMapper;
     private final RecurringTransactionProcessor recurringTransactionProcessor;
+
+    @Override
+    @Transactional
+    public RecurringTransactionResponse createRecurring(UUID userId, RecurringTransactionCreateRequest request) {
+        Category category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+        RecurringTransaction recurringTransaction = recurringTransactionMapper.toEntity(userId, request, category);
+
+        RecurringTransaction saved = recurringTransactionRepository.save(recurringTransaction);
+        return recurringTransactionMapper.toRecurringTransactionResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RecurringTransactionResponse getRecurringById(UUID userId, UUID id) {
+        RecurringTransaction recurringTransaction = recurringTransactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(RecurringTransactionErrorCode.RECURRING_TRANSACTION_NOT_FOUND));
+
+        return recurringTransactionMapper.toRecurringTransactionResponse(recurringTransaction);
+    }
+
+    @Override
+    public RecurringTransactionResponse updateRecurring(UUID userId, UUID id, RecurringTransactionUpdateRequest request) {
+        RecurringTransaction recurringTransaction = recurringTransactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(RecurringTransactionErrorCode.RECURRING_TRANSACTION_NOT_FOUND));
+
+        RecurringTransaction.RecurringTransactionBuilder recurringTransactionBuilder = recurringTransaction.toBuilder();
+
+        if (request.categoryId() != null) {
+            Category category = categoryRepository.findById(request.categoryId())
+                    .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+            if (category.getTransactionType() != recurringTransaction.getCategory().getTransactionType()) {
+                throw new BusinessException(RecurringTransactionErrorCode.UPDATE_CONFLICT_TRANSACTION_TYPE);
+            }
+            recurringTransactionBuilder.category(category);
+        }
+
+        if (request.amount() != null) {
+            recurringTransactionBuilder.amount(request.amount());
+        }
+
+        if (request.note() != null) {
+            recurringTransactionBuilder.note(request.note());
+        }
+
+        if (request.frequency() != null) {
+            recurringTransactionBuilder.frequency(request.frequency());
+        }
+
+        if (request.startDate() != null) {
+            recurringTransactionBuilder.startDate(request.startDate());
+        }
+
+        if (request.endDate() != null) {
+            recurringTransactionBuilder.endDate(request.endDate());
+        }
+
+        if (request.executionTime() != null) {
+            recurringTransactionBuilder.executionTime(request.executionTime());
+        }
+
+        RecurringTransaction updatedRecurringTransaction = recurringTransactionBuilder.build();
+
+        RecurringTransaction savedRecurringTransaction = recurringTransactionRepository.save(updatedRecurringTransaction);
+        return recurringTransactionMapper.toRecurringTransactionResponse(savedRecurringTransaction);
+    }
+
+    @Override
+    @Transactional
+    public void deleteRecurring(UUID userId, UUID id) {
+        RecurringTransaction existing = recurringTransactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(RecurringTransactionErrorCode.RECURRING_TRANSACTION_NOT_FOUND));
+
+        recurringTransactionRepository.delete(existing);
+    }
+
+    @Override
+    public RecurringTransactionResponse toggleActiveStatus(UUID userId, UUID id) {
+        RecurringTransaction existing = recurringTransactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(RecurringTransactionErrorCode.RECURRING_TRANSACTION_NOT_FOUND));
+
+        RecurringTransaction updated = existing.toBuilder()
+                .active(!existing.isActive())
+                .build();
+
+        RecurringTransaction saved = recurringTransactionRepository.save(updated);
+        log.info("Toggled active status for recurring transaction {} to {}", id, saved.isActive());
+        return recurringTransactionMapper.toRecurringTransactionResponse(saved);
+    }
 
     @Override
     @Transactional(readOnly = true)
