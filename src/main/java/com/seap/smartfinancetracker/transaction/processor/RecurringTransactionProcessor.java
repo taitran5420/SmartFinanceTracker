@@ -12,7 +12,6 @@ import com.seap.smartfinancetracker.transaction.repository.RecurringTransactionR
 import com.seap.smartfinancetracker.transaction.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,7 +27,6 @@ public class RecurringTransactionProcessor {
     private final TransactionService transactionService;
     private final RecurringTransactionRepository recurringTransactionRepository;
     private final RecurringTransactionMapper recurringTransactionMapper;
-    private final ApplicationEventPublisher eventPublisher;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
