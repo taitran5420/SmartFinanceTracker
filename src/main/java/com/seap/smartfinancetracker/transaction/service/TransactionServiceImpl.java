@@ -121,9 +121,12 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction savedTransaction = transactionRepository.save(transaction);
 
-        TransactionCreatedEvent transactionCreatedEvent = new TransactionCreatedEvent(
-                userId, category.getCategoryName(), savedTransaction.getAmount(), savedTransaction.getTransactionType()
-        );
+        TransactionCreatedEvent transactionCreatedEvent = TransactionCreatedEvent.builder()
+                .userId(userId)
+                .categoryName(category.getCategoryName())
+                .amount(savedTransaction.getAmount())
+                .transactionType(savedTransaction.getTransactionType())
+                .build();
 
         try {
             String jsonPayload = objectMapper.writeValueAsString(transactionCreatedEvent);

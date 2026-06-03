@@ -17,7 +17,7 @@ public class NotificationEventListener {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "overdraft-events", groupId = "smart-finance-notification-group")
+    @KafkaListener(topics = "overdraft-alert-topic", groupId = "smart-finance-notification-group")
     public void handleOverdraftAlertEvent(String eventJsonString) {
         try {
             OverdraftAlertEvent overdraftAlertEvent = objectMapper.readValue(eventJsonString, OverdraftAlertEvent.class);

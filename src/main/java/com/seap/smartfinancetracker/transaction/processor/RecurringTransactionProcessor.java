@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.transaction.processor;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
@@ -11,6 +13,7 @@ import com.seap.smartfinancetracker.transaction.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,8 @@ public class RecurringTransactionProcessor {
     private final RecurringTransactionRepository recurringTransactionRepository;
     private final RecurringTransactionMapper recurringTransactionMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final ObjectMapper objectMapper;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processSingleRecurringTransaction(RecurringTransaction recurringTransaction) {
@@ -39,12 +44,19 @@ public class RecurringTransactionProcessor {
         } catch (BusinessException e) {
             log.warn("Skipped transaction {} due to rule violation: {}", recurringTransaction.getId(), e.getMessage());
 
-            eventPublisher.publishEvent(new OverdraftAlertEvent(
-                    userId,
-                    recurringTransaction.getCategory().getCategoryName(),
-                    e.getMessage()
-            ));
-        } catch (Exception e) {
+            OverdraftAlertEvent overdraftAlertEvent = OverdraftAlertEvent.builder()
+                    .userId(userId)
+                    .errorMessage(e.getMessage())
+                    .categoryName(recurringTransaction.getCategory().getCategoryName())
+                    .build();
+            try {
+                String overdraftJsonPayload = objectMapper.writeValueAsString(overdraftAlertEvent);
+
+                kafkaTemplate.send("overdraft-alert-topic", overdraftJsonPayload);
+            } catch (JsonProcessingException ex) {
+                log.error("Failed to convert event to JSON for user: {}", userId, ex);
+            }
+        }  catch (Exception e) {
             log.error("Unexpected error executing recurring transaction {}", recurringTransaction.getId(), e);
         }
 
