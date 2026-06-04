@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -149,9 +150,16 @@ public class RecurringTransactionServiceImpl implements RecurringTransactionServ
         List<RecurringTransaction> dueTransactions = recurringTransactionRepository.findDueTransactions(today, now);
 
         if (!dueTransactions.isEmpty()) {
-            log.info("Found {} recurring transactions to process at {} {}", dueTransactions.size(), today, now);
-            for (RecurringTransaction recurringTransaction : dueTransactions) {
-                recurringTransactionProcessor.processSingleRecurringTransaction(recurringTransaction);
+            Map<UUID, List<RecurringTransaction>> groupedByUserId = dueTransactions.stream()
+                            .collect(Collectors.groupingBy(recurringTransaction -> recurringTransaction.getUser().getId()));
+
+            log.info("Found {} recurring transactions belonging to {} different users at {} {}.",
+                    dueTransactions.size(), groupedByUserId.size(), today, now);
+
+            for (Map.Entry<UUID, List<RecurringTransaction>> recurringTransactionByUserIdEntry : groupedByUserId.entrySet()) {
+                UUID userId = recurringTransactionByUserIdEntry.getKey();
+                List<RecurringTransaction> recurringTransactions = recurringTransactionByUserIdEntry.getValue();
+                recurringTransactionProcessor.processRecurringTransactionForUser(userId, recurringTransactions);
             }
         }
     }

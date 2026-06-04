@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.transaction.processor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.seap.smartfinancetracker.common.config.ThreadPoolConfig;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
 import com.seap.smartfinancetracker.transaction.dto.OverdraftAlertEvent;
@@ -14,12 +15,16 @@ import com.seap.smartfinancetracker.transaction.repository.RecurringTransactionR
 import com.seap.smartfinancetracker.transaction.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -32,9 +37,20 @@ public class RecurringTransactionProcessor {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
+    @Autowired
+    @Lazy
+    private RecurringTransactionProcessor self;
+
+    @Async(ThreadPoolConfig.RECURRING_TASK_EXECUTOR_BEAN_NAME)
+    public void processRecurringTransactionForUser(UUID userId, List<RecurringTransaction> recurringTransactions) {
+        log.info("Thread {} is processing {} transactions sequentially for user: {}",
+                Thread.currentThread().getName(), recurringTransactions.size(), userId);
+        recurringTransactions.forEach((recurringTransaction) ->
+                self.processSingleRecurringTransaction(userId, recurringTransaction));
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void processSingleRecurringTransaction(RecurringTransaction recurringTransaction) {
-        UUID userId = recurringTransaction.getUser().getId();
+    public void processSingleRecurringTransaction(UUID userId, RecurringTransaction recurringTransaction) {
         try {
             TransactionCreateRequest transactionCreateRequest = recurringTransactionMapper
                     .toTransactionCreateRequest(recurringTransaction);

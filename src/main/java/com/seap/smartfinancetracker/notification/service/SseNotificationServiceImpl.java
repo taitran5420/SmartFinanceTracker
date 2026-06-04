@@ -1,7 +1,10 @@
 package com.seap.smartfinancetracker.notification.service;
 
-import com.seap.smartfinancetracker.notification.entity.Notification;
+import com.seap.smartfinancetracker.common.config.ThreadPoolConfig;
+import com.seap.smartfinancetracker.notification.dto.NotificationResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -29,14 +32,15 @@ public class SseNotificationServiceImpl implements SseNotificationService {
         return emitter;
     }
 
-    public void pushNotificationToUser(UUID userId, Notification notification) {
+    @Async(ThreadPoolConfig.NOTIFICATION_EXECUTOR_BEAN_NAME)
+    public void pushNotificationToUser(UUID userId, NotificationResponse notificationResponse) {
         SseEmitter emitter = userEmitters.get(userId);
 
         if (emitter != null) {
             try {
                 emitter.send(SseEmitter.event()
                         .name("new-notification")
-                        .data(notification));
+                        .data(notificationResponse, MediaType.APPLICATION_JSON));
                 log.info("Successfully pushed real-time notification to user: {}", userId);
             } catch (IOException e) {
                 log.error("Failed to push notification. Removing stale emitter for user: {}", userId);

@@ -4,6 +4,7 @@ import com.seap.smartfinancetracker.notification.entity.Notification;
 import com.seap.smartfinancetracker.notification.enums.NotificationType;
 import com.seap.smartfinancetracker.notification.event.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
+import com.seap.smartfinancetracker.notification.mapper.NotificationMapper;
 import com.seap.smartfinancetracker.notification.repository.NotificationRepository;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import com.seap.smartfinancetracker.user.entity.User;
@@ -23,6 +24,7 @@ public class NotificationServiceImpl implements NotificationService{
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SseNotificationService sseNotificationService;
+    private final NotificationMapper notificationMapper;
 
     @Override
     @Transactional
@@ -40,7 +42,7 @@ public class NotificationServiceImpl implements NotificationService{
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        sseNotificationService.pushNotificationToUser(userId, saved);
+        sseNotificationService.pushNotificationToUser(userId, notificationMapper.toNotificationResponse(saved));
     }
 
     @Override
@@ -60,6 +62,6 @@ public class NotificationServiceImpl implements NotificationService{
                 .build();
 
         Notification saved = notificationRepository.save(notification);
-        sseNotificationService.pushNotificationToUser(userId, saved);
+        sseNotificationService.pushNotificationToUser(userId, notificationMapper.toNotificationResponse(saved));
     }
 }
