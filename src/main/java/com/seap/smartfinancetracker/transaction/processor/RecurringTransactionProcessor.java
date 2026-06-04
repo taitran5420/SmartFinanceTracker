@@ -3,10 +3,12 @@ package com.seap.smartfinancetracker.transaction.processor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
 import com.seap.smartfinancetracker.transaction.dto.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;
 import com.seap.smartfinancetracker.transaction.enums.Frequency;
+import com.seap.smartfinancetracker.transaction.exception.TransactionErrorCode;
 import com.seap.smartfinancetracker.transaction.mapper.RecurringTransactionMapper;
 import com.seap.smartfinancetracker.transaction.repository.RecurringTransactionRepository;
 import com.seap.smartfinancetracker.transaction.service.TransactionService;
@@ -42,17 +44,19 @@ public class RecurringTransactionProcessor {
         } catch (BusinessException e) {
             log.warn("Skipped transaction {} due to rule violation: {}", recurringTransaction.getId(), e.getMessage());
 
-            OverdraftAlertEvent overdraftAlertEvent = OverdraftAlertEvent.builder()
-                    .userId(userId)
-                    .errorMessage(e.getMessage())
-                    .categoryName(recurringTransaction.getCategory().getCategoryName())
-                    .build();
-            try {
-                String overdraftJsonPayload = objectMapper.writeValueAsString(overdraftAlertEvent);
+            if (e.getErrorCode() == TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED) {
+                OverdraftAlertEvent overdraftAlertEvent = OverdraftAlertEvent.builder()
+                        .userId(userId)
+                        .errorMessage(e.getMessage())
+                        .categoryName(recurringTransaction.getCategory().getCategoryName())
+                        .build();
+                try {
+                    String overdraftJsonPayload = objectMapper.writeValueAsString(overdraftAlertEvent);
 
-                kafkaTemplate.send("overdraft-alert-topic", overdraftJsonPayload);
-            } catch (JsonProcessingException ex) {
-                log.error("Failed to convert event to JSON for user: {}", userId, ex);
+                    kafkaTemplate.send(KafkaConstant.OVERDRAFT_ALERT_TOPIC, overdraftJsonPayload);
+                } catch (JsonProcessingException ex) {
+                    log.error("Failed to convert event to JSON for user: {}", userId, ex);
+                }
             }
         }  catch (Exception e) {
             log.error("Unexpected error executing recurring transaction {}", recurringTransaction.getId(), e);

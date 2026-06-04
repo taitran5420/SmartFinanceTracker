@@ -9,6 +9,7 @@ import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
 import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
@@ -130,7 +131,7 @@ public class TransactionServiceImpl implements TransactionService {
 
         try {
             String jsonPayload = objectMapper.writeValueAsString(transactionCreatedEvent);
-            kafkaTemplate.send("transaction-created-topic", jsonPayload);
+            kafkaTemplate.send(KafkaConstant.TRANSACTION_CREATED_TOPIC, jsonPayload);
             log.info("Published TransactionCreatedEvent to Kafka topic 'transaction-created-topic' for user: {}", userId);
 
         } catch (JsonProcessingException e) {

@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.notification.listener;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
 import com.seap.smartfinancetracker.notification.event.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.notification.service.NotificationService;
@@ -17,7 +18,7 @@ public class NotificationEventListener {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "overdraft-alert-topic", groupId = "smart-finance-notification-group")
+    @KafkaListener(topics = KafkaConstant.OVERDRAFT_ALERT_TOPIC, groupId = KafkaConstant.GROUP_ID)
     public void handleOverdraftAlertEvent(String eventJsonString) {
         try {
             OverdraftAlertEvent overdraftAlertEvent = objectMapper.readValue(eventJsonString, OverdraftAlertEvent.class);
@@ -31,7 +32,7 @@ public class NotificationEventListener {
         }
     }
 
-    @KafkaListener(topics = "transaction-created-topic", groupId = "smart-finance-notification-group")
+    @KafkaListener(topics = KafkaConstant.TRANSACTION_CREATED_TOPIC, groupId = KafkaConstant.GROUP_ID)
     public void handleTransactionCreatedEvent(String eventJsonString) {
         try {
             TransactionCreatedEvent transactionCreatedEvent = objectMapper.readValue(eventJsonString, TransactionCreatedEvent.class);
