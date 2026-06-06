@@ -13,9 +13,23 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
+/**
+ * Component responsible for mapping between {@link RecurringTransaction} entities
+ * and their corresponding Data Transfer Objects (DTOs).
+ * <p>
+ * This class handles the data transformation logic for the automated scheduling module,
+ * strictly separating the database entity structure from the API and internal communication payloads.
+ * </p>
+ */
 @Component
 public class RecurringTransactionMapper {
 
+    /**
+     * Converts a persisted {@link RecurringTransaction} entity into a standard REST response.
+     *
+     * @param recurringTransaction the entity retrieved from the database
+     * @return the mapped {@link RecurringTransactionResponse}, or {@code null} if the entity is null
+     */
     public RecurringTransactionResponse toRecurringTransactionResponse(RecurringTransaction recurringTransaction) {
         if (recurringTransaction == null) {
             return null;
@@ -37,6 +51,21 @@ public class RecurringTransactionMapper {
                 .build();
     }
 
+    /**
+     * Converts a creation request into a new {@link RecurringTransaction} entity.
+     * <p>
+     * <b>Initialization Notes:</b>
+     * <ul>
+     * <li>Automatically initializes the {@code active} flag to {@code true}.</li>
+     * <li>Sets the initial {@code nextOccurrenceDate} to match the requested {@code startDate}.</li>
+     * </ul>
+     * </p>
+     *
+     * @param userId                            the ID of the user creating the schedule
+     * @param recurringTransactionCreateRequest the payload containing the scheduling rules
+     * @param category                          the fully fetched category entity to inherit the transaction type
+     * @return a new {@link RecurringTransaction} entity ready for persistence
+     */
     public RecurringTransaction toEntity(UUID userId, RecurringTransactionCreateRequest recurringTransactionCreateRequest, Category category) {
         if (recurringTransactionCreateRequest == null) {
             return null;
@@ -57,6 +86,18 @@ public class RecurringTransactionMapper {
                 .build();
     }
 
+    /**
+     * Converts a recurring transaction entity into a specialized forecasting projection.
+     * <p>
+     * <b>Dynamic Calculation:</b> Calculates the {@code daysUntilDue} on-the-fly using
+     * the system's current date against the scheduled {@code nextOccurrenceDate}.
+     * This offloads time-math from the frontend clients.
+     * </p>
+     *
+     * @param recurringTransaction the scheduled transaction entity
+     * @return an {@link UpcomingRecurringResponse} optimized for dashboard display or
+     * {@code null} if the recurring transaction is null
+     */
     public UpcomingRecurringResponse toUpcomingRecurringResponse(RecurringTransaction recurringTransaction) {
         if (recurringTransaction == null) {
             return null;
@@ -73,6 +114,18 @@ public class RecurringTransactionMapper {
                 .build();
     }
 
+    /**
+     * Converts a mature recurring configuration into an actionable transaction creation request.
+     * <p>
+     * <b>Architecture Note:</b> When a recurring schedule is due, it does not bypass the core
+     * transaction module. Instead, this mapper generates a fresh {@link TransactionCreateRequest}
+     * complete with a new, random {@code idempotencyKey}. This ensures the automated execution
+     * strictly adheres to standard validation and double-spending protection rules.
+     * </p>
+     *
+     * @param recurringTransaction the scheduled configuration that is currently due
+     * @return a payload simulating a user creating a new transaction
+     */
     public TransactionCreateRequest toTransactionCreateRequest(RecurringTransaction recurringTransaction) {
         if (recurringTransaction == null) {
             return null;

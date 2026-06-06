@@ -9,6 +9,14 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
+/**
+ * Data Transfer Object representing the full state of a recurring transaction configuration.
+ * <p>
+ * This payload is returned to the client after creation, update, or retrieval operations.
+ * It denormalizes essential data (like {@code categoryName} and {@code transactionType})
+ * to reduce the number of subsequent API calls required by the frontend to render the UI.
+ * </p>
+ */
 @Builder
 public record RecurringTransactionResponse(
         UUID id,

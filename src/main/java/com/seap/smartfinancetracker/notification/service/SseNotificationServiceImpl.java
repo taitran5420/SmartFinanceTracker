@@ -13,12 +13,24 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Core implementation of the {@link SseNotificationService}.
+ */
 @Slf4j
 @Service
 public class SseNotificationServiceImpl implements SseNotificationService {
 
     private final Map<UUID, SseEmitter> userEmitters = new ConcurrentHashMap<>();
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b>
+     * Configures the emitter with a 30-minute timeout (1,800,000 ms) and attaches crucial
+     * lifecycle hooks (completion, timeout, error) to gracefully remove stale connections
+     * and prevent memory leaks.
+     * </p>
+     */
     public SseEmitter createEmitter(UUID userId) {
         SseEmitter emitter = new SseEmitter(1800000L);
 
@@ -32,6 +44,16 @@ public class SseNotificationServiceImpl implements SseNotificationService {
         return emitter;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Performance & Resilience:</b>
+     * Executed asynchronously using a dedicated thread pool ({@code NOTIFICATION_EXECUTOR_BEAN_NAME}).
+     * This isolates the potential network latency of the SSE dispatch from the main application
+     * or Kafka consumer threads. If a dispatch fails due to network issues (IOException),
+     * the stale connection is automatically pruned from the registry.
+     * </p>
+     */
     @Async(ThreadPoolConfig.NOTIFICATION_EXECUTOR_BEAN_NAME)
     public void pushNotificationToUser(UUID userId, NotificationResponse notificationResponse) {
         SseEmitter emitter = userEmitters.get(userId);
@@ -51,6 +73,11 @@ public class SseNotificationServiceImpl implements SseNotificationService {
         }
     }
 
+    /**
+     * Safely removes an emitter from the active connection registry.
+     *
+     * @param userId the unique identifier of the disconnected user
+     */
     private void removeEmitter(UUID userId) {
         userEmitters.remove(userId);
         log.debug("SSE connection removed for user: {}", userId);

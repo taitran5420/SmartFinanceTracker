@@ -10,6 +10,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
+/**
+ * Data Transfer Object containing the payload for modifying an existing recurring transaction.
+ *
+ */
 @Builder
 public record RecurringTransactionUpdateRequest(
         UUID categoryId,

@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Core implementation of the {@link RecurringTransactionService}.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -57,6 +60,14 @@ public class RecurringTransactionServiceImpl implements RecurringTransactionServ
         return recurringTransactionMapper.toRecurringTransactionResponse(recurringTransaction);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Leverages the {@code toBuilder()} pattern to facilitate
+     * clean, null-safe partial updates. Contains strict defensive programming to reject any
+     * category updates that attempt to alter the fundamental {@code TransactionType}.
+     * </p>
+     */
     @Override
     public RecurringTransactionResponse updateRecurring(UUID userId, UUID id, RecurringTransactionUpdateRequest request) {
         RecurringTransaction recurringTransaction = recurringTransactionRepository.findByIdAndUserId(id, userId)
@@ -142,6 +153,16 @@ public class RecurringTransactionServiceImpl implements RecurringTransactionServ
                 .collect(Collectors.toList());
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Concurrency Optimization:</b> Retrieves all globally due transactions and explicitly
+     * groups them by {@code userId} prior to processing. This architectural design delegates
+     * the batches to the async processor in a way that allows horizontal multi-tenant scaling
+     * (processing multiple users concurrently across threads) while strictly maintaining
+     * intra-user sequential processing (preventing database row-locks or deadlocks on a single user's data).
+     * </p>
+     */
     @Override
     public void processDueRecurringTransactions() {
         LocalDate today = LocalDate.now();
