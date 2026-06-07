@@ -26,6 +26,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
+    private static final String TRANSACTION_FAILED_TITLE = "Scheduled Transaction Failed";
+    private static final String TRANSACTION_FAILED_MESSAGE = "Could not process transaction for '%s'. Reason: %s";
+
+    private static final String TRANSACTION_SUCCESS_TITLE = "Transaction Successful";
+    private static final String TRANSACTION_SUCCESS_MESSAGE = "Successfully %s %s for '%s'.";
+
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SseNotificationService sseNotificationService;
@@ -48,8 +54,8 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification notification = Notification.builder()
                 .user(userRef)
-                .title("Scheduled Transaction Failed")
-                .message(String.format("Could not process transaction for '%s'. Reason: %s",
+                .title(TRANSACTION_FAILED_TITLE)
+                .message(String.format(TRANSACTION_FAILED_MESSAGE,
                         overdraftAlertEvent.categoryName(),
                         overdraftAlertEvent.errorMessage()))
                 .notificationType(NotificationType.OVERDRAFT_ALERT)
@@ -76,8 +82,8 @@ public class NotificationServiceImpl implements NotificationService {
 
         Notification notification = Notification.builder()
                 .user(userRef)
-                .title("Transaction Successful")
-                .message(String.format("Successfully %s %s for '%s'.", action,
+                .title(TRANSACTION_SUCCESS_TITLE)
+                .message(String.format(TRANSACTION_SUCCESS_MESSAGE, action,
                         transactionCreatedEvent.amount(),
                         transactionCreatedEvent.categoryName()))
                 .notificationType(NotificationType.TRANSACTION_SUCCESS)
