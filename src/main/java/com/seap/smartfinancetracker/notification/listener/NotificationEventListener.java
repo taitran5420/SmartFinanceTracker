@@ -2,7 +2,7 @@ package com.seap.smartfinancetracker.notification.listener;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
+import com.seap.smartfinancetracker.common.constant.KafkaConstant;
 import com.seap.smartfinancetracker.notification.event.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.notification.service.NotificationService;

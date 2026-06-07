@@ -1,7 +1,7 @@
-package com.seap.smartfinancetracker.kafka.config;
+package com.seap.smartfinancetracker.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
+import com.seap.smartfinancetracker.common.constant.KafkaConstant;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;

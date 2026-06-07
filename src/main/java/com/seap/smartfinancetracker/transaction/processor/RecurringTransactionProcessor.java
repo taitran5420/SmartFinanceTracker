@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.common.config.ThreadPoolConfig;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
-import com.seap.smartfinancetracker.kafka.constant.KafkaConstant;
+import com.seap.smartfinancetracker.common.constant.KafkaConstant;
 import com.seap.smartfinancetracker.transaction.dto.OverdraftAlertEvent;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;

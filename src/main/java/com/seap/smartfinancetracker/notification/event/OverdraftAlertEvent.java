@@ -1,5 +1,7 @@
 package com.seap.smartfinancetracker.notification.event;
 
+import lombok.Builder;
+
 import java.util.UUID;
 
 /**
@@ -9,6 +11,7 @@ import java.util.UUID;
  * @param categoryName the specific category associated with the failed transaction attempt
  * @param errorMessage the detailed system message explaining the overdraft constraint
  */
+@Builder
 public record OverdraftAlertEvent(
         UUID userId,
         String categoryName,

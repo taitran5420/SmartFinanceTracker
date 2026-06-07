@@ -1,8 +1,7 @@
 package com.seap.smartfinancetracker.transaction.service;
 
 import com.seap.smartfinancetracker.category.entity.Category;
-import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
-import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.RecurringTransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.dto.RecurringTransactionResponse;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 public class RecurringTransactionServiceImpl implements RecurringTransactionService {
 
     private final RecurringTransactionRepository recurringTransactionRepository;
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
 
     private final RecurringTransactionMapper recurringTransactionMapper;
     private final RecurringTransactionProcessor recurringTransactionProcessor;
@@ -42,8 +41,7 @@ public class RecurringTransactionServiceImpl implements RecurringTransactionServ
     @Override
     @Transactional
     public RecurringTransactionResponse createRecurring(UUID userId, RecurringTransactionCreateRequest request) {
-        Category category = categoryRepository.findById(request.categoryId())
-                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+        Category category = categoryService.getCategoryEntity(userId, request.categoryId());
 
         RecurringTransaction recurringTransaction = recurringTransactionMapper.toEntity(userId, request, category);
 
@@ -76,8 +74,7 @@ public class RecurringTransactionServiceImpl implements RecurringTransactionServ
         RecurringTransaction.RecurringTransactionBuilder recurringTransactionBuilder = recurringTransaction.toBuilder();
 
         if (request.categoryId() != null) {
-            Category category = categoryRepository.findById(request.categoryId())
-                    .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+            Category category = categoryService.getCategoryEntity(userId, request.categoryId());
 
             if (category.getTransactionType() != recurringTransaction.getCategory().getTransactionType()) {
                 throw new BusinessException(RecurringTransactionErrorCode.UPDATE_CONFLICT_TRANSACTION_TYPE);

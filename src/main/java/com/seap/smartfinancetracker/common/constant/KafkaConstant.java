@@ -1,4 +1,4 @@
-package com.seap.smartfinancetracker.kafka.constant;
+package com.seap.smartfinancetracker.common.constant;
 
 public class KafkaConstant {
     public static final String GROUP_ID = "smart-finance-tracker-group";
