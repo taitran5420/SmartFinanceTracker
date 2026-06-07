@@ -7,6 +7,7 @@ import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -22,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -93,45 +93,33 @@ class TransactionServiceImplTest {
         assertEquals(HttpStatus.CONFLICT.value(), exception.getErrorCode().getHttpStatus());
         assertEquals("A transaction with this idempotency key already exists", exception.getMessage());
         verify(transactionRepository, never()).save(any());
+        verify(kafkaTemplate, never()).send(anyString(), anyString()); // Đảm bảo không bắn Kafka khi lỗi
     }
 
     @Test
     @DisplayName("Should successfully create a transaction using a specific user category")
-    void createTransaction_ShouldSucceed_WhenUsingValidUserCategory() {
+    void createTransaction_ShouldSucceed_WhenUsingValidUserCategory() throws Exception {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
         TransactionType type = TransactionType.EXPENSE;
 
         when(userRepository.findByIdWithPessimisticLock(userId))
-                .thenReturn(Optional.of(Instancio.of(User.class)
-                        .set(Select.field(User::getId), userId)
-                        .create()));
+                .thenReturn(Optional.of(Instancio.of(User.class).set(Select.field(User::getId), userId).create()));
 
-        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
-                Mockito.any(UUID.class),
-                Mockito.eq(TransactionType.INCOME)
-        )).thenReturn(BigDecimal.valueOf(50000));
-
-        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
-                Mockito.any(UUID.class),
-                Mockito.eq(TransactionType.EXPENSE)
-        )).thenReturn(BigDecimal.ZERO);
-
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.INCOME)))
+                .thenReturn(BigDecimal.valueOf(50000));
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.EXPENSE)))
+                .thenReturn(BigDecimal.ZERO);
         when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(any(UUID.class), any(UUID.class), anyInt(), anyInt()))
                 .thenReturn(Optional.empty());
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
                 .set(Select.field("categoryId"), categoryId)
-                .set(Select.field("transactionType"), type)
-                .create();
+                .set(Select.field("transactionType"), type).create();
 
         User owner = Instancio.of(User.class).set(Select.field(User::getId), userId).create();
-        Category category = Instancio.of(Category.class)
-                .set(Select.field(Category::getId), categoryId)
-                .set(Select.field(Category::getUser), owner)
-                .set(Select.field(Category::getTransactionType), type)
-                .create();
+        Category category = Instancio.of(Category.class).set(Select.field(Category::getId), categoryId).set(Select.field(Category::getUser), owner).set(Select.field(Category::getTransactionType), type).create();
 
         Transaction mappedEntity = Instancio.create(Transaction.class);
         Transaction savedEntity = Instancio.create(Transaction.class);
@@ -143,6 +131,10 @@ class TransactionServiceImplTest {
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
         when(categoryService.getCategoryEntity(eq(userId), eq(categoryId))).thenReturn(category);
 
+        // Mock Kafka Payload
+        String expectedKafkaPayload = "{\"test\":\"event\"}";
+        when(objectMapper.writeValueAsString(any(TransactionCreatedEvent.class))).thenReturn(expectedKafkaPayload);
+
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
 
@@ -150,30 +142,26 @@ class TransactionServiceImplTest {
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
         verify(transactionRepository, times(1)).save(mappedEntity);
+
+        verify(kafkaTemplate, times(1)).send(anyString(), eq(expectedKafkaPayload));
     }
 
     @Test
     @DisplayName("Should successfully create a transaction using a default system category when categoryId is null")
-    void createTransaction_ShouldSucceed_WhenUsingDefaultSystemCategory() {
+    void createTransaction_ShouldSucceed_WhenUsingDefaultSystemCategory() throws Exception {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         TransactionType type = TransactionType.INCOME;
         String systemDefaultCategoryCode = "SYS_OTHER_INCOME";
 
         when(userRepository.findByIdWithPessimisticLock(userId))
-                .thenReturn(Optional.of(Instancio.of(User.class)
-                        .set(Select.field(User::getId), userId)
-                        .create()));
+                .thenReturn(Optional.of(Instancio.of(User.class).set(Select.field(User::getId), userId).create()));
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(Select.field("categoryId"), null)
-                .set(Select.field("transactionType"), type)
-                .create();
+                .set(Select.field("categoryId"), null).set(Select.field("transactionType"), type).create();
 
         Category defaultCategory = Instancio.of(Category.class)
-                .set(Select.field(Category::getUser), null)
-                .set(Select.field(Category::getTransactionType), type)
-                .create();
+                .set(Select.field(Category::getUser), null).set(Select.field(Category::getTransactionType), type).create();
 
         Transaction mappedEntity = Instancio.create(Transaction.class);
         Transaction savedEntity = Instancio.create(Transaction.class);
@@ -185,6 +173,10 @@ class TransactionServiceImplTest {
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
 
+        // Mock Kafka Payload
+        String expectedKafkaPayload = "{\"test\":\"event2\"}";
+        when(objectMapper.writeValueAsString(any(TransactionCreatedEvent.class))).thenReturn(expectedKafkaPayload);
+
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
 
@@ -192,6 +184,8 @@ class TransactionServiceImplTest {
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
         verify(transactionRepository, times(1)).save(mappedEntity);
+
+        verify(kafkaTemplate, times(1)).send(anyString(), eq(expectedKafkaPayload));
     }
     //</editor-fold>
 
@@ -597,4 +591,5 @@ class TransactionServiceImplTest {
                 .thenReturn(currentSpent);
     }
     //</editor-fold>
+
 }
