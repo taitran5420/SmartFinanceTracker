@@ -178,6 +178,45 @@ class RecurringTransactionProcessorTest {
     }
 
     @Test
+    @DisplayName("Should treat a duplicate (idempotency) re-fire as a no-op: no double charge, no Kafka, lifecycle still advances")
+    void processSingleRecurringTransaction_ShouldNotDoubleCharge_WhenOccurrenceReprocessed() {
+        // Arrange: simulate a re-fire of an occurrence whose money was already committed but whose
+        // nextOccurrenceDate was not advanced (e.g. a crash between the two commits). The deterministic
+        // idempotency key makes the core service reject the duplicate with IDEMPOTENCY_KEY_EXISTS.
+        UUID userId = UUID.randomUUID();
+        LocalDate currentDate = LocalDate.of(2026, 6, 15);
+        Category category = Instancio.create(Category.class);
+
+        RecurringTransaction recurringTransaction = Instancio.of(RecurringTransaction.class)
+                .set(field(RecurringTransaction::getCategory), category)
+                .set(field(RecurringTransaction::getFrequency), Frequency.MONTHLY)
+                .set(field(RecurringTransaction::getNextOccurrenceDate), currentDate)
+                .set(field(RecurringTransaction::isActive), true)
+                .ignore(field(RecurringTransaction::getEndDate))
+                .create();
+
+        TransactionCreateRequest createRequest = Instancio.create(TransactionCreateRequest.class);
+        when(recurringTransactionMapper.toTransactionCreateRequest(recurringTransaction)).thenReturn(createRequest);
+        when(recurringTransactionRepository.save(any(RecurringTransaction.class))).thenAnswer(i -> i.getArgument(0));
+
+        doThrow(new BusinessException(TransactionErrorCode.IDEMPOTENCY_KEY_EXISTS))
+                .when(transactionService).createTransaction(userId, createRequest);
+
+        // Act
+        assertDoesNotThrow(() -> recurringTransactionProcessor.processSingleRecurringTransaction(userId, recurringTransaction));
+
+        // Assert
+        // Exactly one create attempt was made (the duplicate is rejected inside the service, not retried here)
+        verify(transactionService, times(1)).createTransaction(userId, createRequest);
+        // A duplicate is not an overdraft, so no alert is published
+        verifyNoInteractions(kafkaTemplate);
+        // The schedule must still advance so it does not stay stuck and re-fire forever
+        verify(recurringTransactionRepository).save(recurringCaptor.capture());
+        assertEquals(LocalDate.of(2026, 7, 15), recurringCaptor.getValue().getNextOccurrenceDate(),
+                "Lifecycle must advance past the duplicated occurrence");
+    }
+
+    @Test
     @DisplayName("Should silently catch generic exceptions to prevent batch processing failure")
     void processSingleRecurringTransaction_ShouldCatchGenericExceptions() {
         // Arrange

@@ -13,6 +13,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -103,4 +104,21 @@ public class RecurringTransaction {
     @LastModifiedDate
     @Column(name = UPDATED_AT_COLUMN_NAME)
     private Instant updatedAt;
+
+    /**
+     * Returns a deterministic idempotency key identifying the occurrence that is currently due
+     * (this schedule's {@code id} combined with its {@code nextOccurrenceDate}).
+     * <p>
+     * The same occurrence always yields the same key, so if an occurrence is processed more than
+     * once (e.g. the execution committed but {@code nextOccurrenceDate} was not advanced before a
+     * crash, causing the next scheduler run to re-select this row) the duplicate is rejected by the
+     * transaction service's idempotency guard instead of charging the user twice. A later occurrence
+     * (a different {@code nextOccurrenceDate}) produces a different key and executes normally.
+     *
+     * @return a stable {@link UUID} for this (schedule, occurrence-date) pair
+     */
+    public UUID currentOccurrenceIdempotencyKey() {
+        String seed = id + ":" + nextOccurrenceDate;
+        return UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8));
+    }
 }

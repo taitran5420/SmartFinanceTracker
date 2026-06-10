@@ -118,9 +118,17 @@ public class RecurringTransactionMapper {
      * Converts a mature recurring configuration into an actionable transaction creation request.
      * <p>
      * <b>Architecture Note:</b> When a recurring schedule is due, it does not bypass the core
-     * transaction module. Instead, this mapper generates a fresh {@link TransactionCreateRequest}
-     * complete with a new, random {@code idempotencyKey}. This ensures the automated execution
-     * strictly adheres to standard validation and double-spending protection rules.
+     * transaction module. Instead, this mapper generates a {@link TransactionCreateRequest}
+     * so the automated execution strictly adheres to standard validation and double-spending
+     * protection rules.
+     * </p>
+     * <p>
+     * <b>Double-charge protection:</b> The {@code idempotencyKey} is the schedule's deterministic
+     * per-occurrence key ({@link RecurringTransaction#currentOccurrenceIdempotencyKey()}). If the
+     * same occurrence is processed more than once (e.g. the schedule was executed but its
+     * {@code nextOccurrenceDate} was not advanced before a crash, so the next Quartz run re-selects
+     * it), the identical key causes the core service to reject the duplicate instead of creating a
+     * second transaction.
      * </p>
      *
      * @param recurringTransaction the scheduled configuration that is currently due
@@ -136,7 +144,7 @@ public class RecurringTransactionMapper {
                 .amount(recurringTransaction.getAmount())
                 .transactionType(recurringTransaction.getTransactionType())
                 .note(recurringTransaction.getNote())
-                .idempotencyKey(UUID.randomUUID())
+                .idempotencyKey(recurringTransaction.currentOccurrenceIdempotencyKey())
                 .build();
     }
 }

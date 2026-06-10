@@ -97,8 +97,8 @@ class RecurringTransactionMapperTest {
 
     //<editor-fold desc="Test toTransactionCreateRequest">
     @Test
-    @DisplayName("Should map Entity to Transaction Create Request with a newly generated idempotency key")
-    void toTransactionCreateRequest_ShouldGenerateNewIdempotencyKey() {
+    @DisplayName("Should map Entity to Transaction Create Request, using the schedule's per-occurrence idempotency key")
+    void toTransactionCreateRequest_ShouldUseOccurrenceIdempotencyKey() {
         // Arrange
         RecurringTransaction entity = Instancio.create(RecurringTransaction.class);
 
@@ -109,7 +109,9 @@ class RecurringTransactionMapperTest {
         assertNotNull(request);
         assertEquals(entity.getCategory().getId(), request.categoryId());
         assertEquals(entity.getAmount(), request.amount());
-        assertNotNull(request.idempotencyKey(), "Idempotency key must be generated");
+        // The mapper must delegate to the entity's domain method rather than minting its own key
+        assertEquals(entity.currentOccurrenceIdempotencyKey(), request.idempotencyKey(),
+                "Idempotency key must come from the entity's per-occurrence domain method");
     }
     //</editor-fold>
 }
