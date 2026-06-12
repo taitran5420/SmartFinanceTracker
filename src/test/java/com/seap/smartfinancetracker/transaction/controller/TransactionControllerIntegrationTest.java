@@ -1,7 +1,10 @@
 package com.seap.smartfinancetracker.transaction.controller;
 
+import com.seap.smartfinancetracker.budget.entity.Budget;
+import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
@@ -15,6 +18,9 @@ import com.seap.smartfinancetracker.user.repository.UserRepository;
 import org.instancio.Instancio;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -22,12 +28,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -35,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.*;
 import static org.hibernate.validator.internal.util.Contracts.assertTrue;
@@ -42,6 +51,7 @@ import static org.instancio.Select.field;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,11 +81,18 @@ class TransactionControllerIntegrationTest {
     private TransactionRepository transactionRepository;
 
     @Autowired
+    private BudgetRepository budgetRepository;
+
+    @Autowired
+    private UserPrincipalMapper userPrincipalMapper;
+
+    @Autowired
     private JwtService jwtService;
 
     private String validToken;
     private User testUser;
-    private Category testCategory;
+    private Category testCategoryExpense;
+    private Category testCategoryIncome;
 
     @BeforeEach
     void setUp() {
@@ -91,19 +108,24 @@ class TransactionControllerIntegrationTest {
         testUser = userRepository.save(testUser);
 
         // Create Test Category to satisfy FK constraints
-        testCategory = Instancio.of(Category.class)
+        testCategoryExpense = Instancio.of(Category.class)
                 .ignore(field(Category::getId))
                 .set(field(Category::getUser), testUser)
                 .set(field(Category::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Category::isActive), true)
                 .create();
-        testCategory = categoryRepository.save(testCategory);
+        testCategoryExpense = categoryRepository.save(testCategoryExpense);
+
+        testCategoryIncome = Instancio.of(Category.class)
+                .ignore(field(Category::getId))
+                .set(field(Category::getUser), testUser)
+                .set(field(Category::getTransactionType), TransactionType.INCOME)
+                .set(field(Category::isActive), true)
+                .create();
+        testCategoryIncome = categoryRepository.save(testCategoryIncome);
 
         // Create JWT Test Token
-        UserPrincipal userPrincipal = UserPrincipal.builder()
-                .id(testUser.getId())
-                .email(testUser.getEmail())
-                .build();
+        UserPrincipal userPrincipal = userPrincipalMapper.toUserPrincipal(testUser);
         validToken = jwtService.generateToken(new HashMap<>(), userPrincipal);
     }
     //</editor-fold>
@@ -113,7 +135,7 @@ class TransactionControllerIntegrationTest {
     void shouldCreateTransactionSuccessfully() throws Exception {
         // Arrange
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("150.00"))
                 .create();
@@ -141,7 +163,7 @@ class TransactionControllerIntegrationTest {
     @Test
     void shouldFailToCreateTransaction_WhenAmountOverdraftLimit() throws Exception {
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("1001.00"))
                 .create();
@@ -159,7 +181,7 @@ class TransactionControllerIntegrationTest {
     void shouldPreventOverdraft_WhenConcurrentRequestsAreSent() throws Exception {
         // Arrange: Prepare the request payload for an EXPENSE of 900.00
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(field(TransactionCreateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionCreateRequest::categoryId), testCategoryExpense.getId())
                 .set(field(TransactionCreateRequest::transactionType), TransactionType.EXPENSE)
                 .set(field(TransactionCreateRequest::amount), new BigDecimal("900.00"))
                 .create();
@@ -228,7 +250,7 @@ class TransactionControllerIntegrationTest {
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Transaction::getAmount), new BigDecimal("250.50"))
                 .set(field(Transaction::isActive), true)
@@ -250,7 +272,7 @@ class TransactionControllerIntegrationTest {
 
         mockMvc.perform(get("/transactions/{transactionId}", fakeTransactionId)
                         .header("Authorization", "Bearer " + validToken))
-                .andExpect(status().isBadRequest()); // Assuming your exception handler maps IllegalArgumentException to 400 Bad Request
+                .andExpect(status().isNotFound());
     }
     //</editor-fold>
 
@@ -261,14 +283,14 @@ class TransactionControllerIntegrationTest {
         Transaction t1 = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
 
         Transaction t2 = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
 
@@ -292,8 +314,9 @@ class TransactionControllerIntegrationTest {
         // Arrange: Create existing transaction
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
+                .set(field(Transaction::getTransactionType), testCategoryIncome.getTransactionType())
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryIncome)
                 .set(field(Transaction::getAmount), new BigDecimal("100.00"))
                 .set(field(Transaction::isActive), true)
                 .create();
@@ -301,7 +324,7 @@ class TransactionControllerIntegrationTest {
 
         // New data for update
         TransactionUpdateRequest updateRequest = Instancio.of(TransactionUpdateRequest.class)
-                .set(field(TransactionUpdateRequest::categoryId), testCategory.getId())
+                .set(field(TransactionUpdateRequest::categoryId), testCategoryIncome.getId())
                 .set(field(TransactionUpdateRequest::amount), new BigDecimal("999.99"))
                 .set(field(TransactionUpdateRequest::note), "Updated note")
                 .create();
@@ -324,7 +347,7 @@ class TransactionControllerIntegrationTest {
         Transaction transaction = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory)
+                .set(field(Transaction::getCategory), testCategoryExpense)
                 .set(field(Transaction::isActive), true)
                 .create();
         transaction = transactionRepository.save(transaction);
@@ -363,7 +386,7 @@ class TransactionControllerIntegrationTest {
         Transaction expenseTx = Instancio.of(Transaction.class)
                 .ignore(field(Transaction::getId))
                 .set(field(Transaction::getUser), testUser)
-                .set(field(Transaction::getCategory), testCategory) // testCategory is EXPENSE
+                .set(field(Transaction::getCategory), testCategoryExpense) // testCategory is EXPENSE
                 .set(field(Transaction::getTransactionType), TransactionType.EXPENSE)
                 .set(field(Transaction::getAmount), new BigDecimal("400.00"))
                 .set(field(Transaction::isActive), true)
@@ -380,6 +403,57 @@ class TransactionControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalIncome").value(1000.00))
                 .andExpect(jsonPath("$.totalExpense").value(400.00))
                 .andExpect(jsonPath("$.currentBalance").value(600.00));
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="POST /transactions (Budget Evaluation)">
+    @ParameterizedTest(name = "Amount: {0}, Expected over budget flag: {1}, Expected warning: {2}")
+    @MethodSource("provideBudgetTestCases")
+    @Transactional
+    void shouldHandleTransactionOverBudgetFlagAndBudgetWarnings(BigDecimal amount, boolean isOverBudget, String expectedWarningMessage) throws Exception {
+        // Arrange
+        Category expenseCategory = Instancio.of(Category.class)
+                .ignore(field(Category::getId))
+                .set(field(Category::getUser), testUser)
+                .set(field(Category::getTransactionType), TransactionType.EXPENSE)
+                .set(field(Category::isActive), true)
+                .create();
+        expenseCategory = categoryRepository.save(expenseCategory);
+
+        Budget budget = Instancio.of(Budget.class)
+                .ignore(field(Budget::getId))
+                .set(field(Budget::getUser), testUser)
+                .set(field(Budget::getCategory), expenseCategory)
+                .set(field(Budget::getAmountLimit), BigDecimal.valueOf(100))
+                .set(field(Budget::getBudgetMonth), LocalDate.now().getMonthValue())
+                .set(field(Budget::getBudgetYear),  LocalDate.now().getYear())
+                .set(field(Budget::isActive), true)
+                .create();
+        budgetRepository.save(budget);
+
+        TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
+                .set(field(TransactionCreateRequest::categoryId), expenseCategory.getId())
+                .set(field(TransactionCreateRequest::amount), amount)
+                .ignore(field(TransactionCreateRequest::transactionType))
+                .create();
+
+        // Act & Assert
+        mockMvc.perform(post("/transactions")
+                        .header("Authorization", "Bearer " + validToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andDo(print())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOverBudget").value(isOverBudget))
+                .andExpect(jsonPath("$.warningMessage").value(expectedWarningMessage));
+    }
+
+    private static Stream<Arguments> provideBudgetTestCases() {
+        return Stream.of(
+                Arguments.of(BigDecimal.valueOf(50), false, null),
+                Arguments.of(BigDecimal.valueOf(95), false, "You are approaching your budget limit for this category."),
+                Arguments.of(BigDecimal.valueOf(102), true, "Transaction accepted, but you have exceeded your budget for this category.")
+        );
     }
     //</editor-fold>
 }

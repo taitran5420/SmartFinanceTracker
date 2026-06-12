@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.category.dto.CategoryCreateRequest;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -58,6 +59,9 @@ public class CategoryControllerIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private UserPrincipalMapper userPrincipalMapper;
+
     private String validToken;
     private User testUser;
 
@@ -74,10 +78,7 @@ public class CategoryControllerIntegrationTest {
         testUser = userRepository.save(testUser);
 
         // Create JWT Test Token
-        UserPrincipal userPrincipal = UserPrincipal.builder()
-                .id(testUser.getId())
-                .email(testUser.getEmail())
-                .build();
+        UserPrincipal userPrincipal = userPrincipalMapper.toUserPrincipal(testUser);
         validToken = jwtService.generateToken(new HashMap<>(), userPrincipal);
     }
     //</editor-fold>
@@ -169,7 +170,7 @@ public class CategoryControllerIntegrationTest {
         // Act & Assert
         mockMvc.perform(get("/categories/{categoryId}", fakeCategoryId)
                         .header("Authorization", "Bearer " + validToken))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound());
     }
     //</editor-fold>
 

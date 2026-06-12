@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.transaction.annotation;
 
+import com.seap.smartfinancetracker.transaction.constant.TransactionValidationMessage;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.validation.RequireCategoryOrTransactionTypeValidator;
 import jakarta.validation.Constraint;
@@ -24,7 +25,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = RequireCategoryOrTransactionTypeValidator.class)
 public @interface RequireCategoryOrTransactionType {
-    String message() default "Either categoryId or transactionType must be provided!";
+    String message() default TransactionValidationMessage.EITHER_CATEGORY_OR_TRANSACTION_TYPE_IS_REQUIRED;
 
     Class<?>[] groups() default {};
 

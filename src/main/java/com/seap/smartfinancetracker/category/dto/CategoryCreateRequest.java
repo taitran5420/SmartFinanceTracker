@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.category.dto;
 
+import com.seap.smartfinancetracker.category.constant.CategoryValidationMessage;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,9 +12,9 @@ import jakarta.validation.constraints.NotNull;
  * @param transactionType the category transaction type
  */
 public record CategoryCreateRequest(
-    @NotBlank(message = "Category name cannot be blank")
+    @NotBlank(message = CategoryValidationMessage.CATEGORY_NAME_CANNOT_BE_BLANK)
     String categoryName,
 
-    @NotNull(message = "Transaction type is required")
+    @NotNull(message = CategoryValidationMessage.TRANSACTION_TYPE_IS_REQUIRED)
     TransactionType transactionType
 ) { }

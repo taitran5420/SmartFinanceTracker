@@ -19,6 +19,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -218,6 +222,116 @@ class TransactionRepositoryTest {
 
         // Assert: COALESCE(SUM(t.amount), 0) without a fallback parameter usually returns null in standard JPQL if no rows match, but returning null here is expected if the sum is completely empty.
         assertEquals(BigDecimal.valueOf(0.0), result,"Should return 0 if there are no transactions matching the user and type");
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="Test calculateTotalSpentByCategoryAndMonth">
+    @Test
+    @DisplayName("Should calculate correct spent amount for a specific user, category, month, year")
+    void calculateTotalSpentByCategoryAndMonth_ShouldCalculateCorrectly() {
+        // Arrange: Setup user and category
+        User owner = entityManager.persistAndFlush(Instancio.of(User.class).ignore(Select.field(User::getId)).create());
+        Category category = entityManager.persistAndFlush(
+                Instancio.of(Category.class)
+                        .set(Select.field(Category::getUser), owner)
+                        .set(Select.field(Category::isActive), true)
+                        .set(Select.field(Category::getTransactionType),  TransactionType.EXPENSE)
+                        .ignore(Select.field(Category::getId))
+                        .create()
+        );
+
+        // T1: Valid EXPENSE, Active -> Include (100.0000)
+        Transaction t1 = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), owner)
+                .set(Select.field(Transaction::getCategory), category)
+                .set(Select.field(Transaction::getTransactionType), TransactionType.EXPENSE)
+                .set(Select.field(Transaction::getAmount), new BigDecimal("100.0000"))
+                .set(Select.field(Transaction::isActive), true)
+                .ignore(Select.field(Transaction::getCreatedAt))
+                .ignore(Select.field(Transaction::getId))
+                .create();
+
+        // T2: Valid EXPENSE, Active -> Include (50.0000)
+        Transaction t2 = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), owner)
+                .set(Select.field(Transaction::getCategory), category)
+                .set(Select.field(Transaction::getTransactionType), TransactionType.EXPENSE)
+                .set(Select.field(Transaction::getAmount), new BigDecimal("50.0000"))
+                .set(Select.field(Transaction::isActive), true)
+                .ignore(Select.field(Transaction::getCreatedAt))
+                .ignore(Select.field(Transaction::getId))
+                .create();
+
+        // T3: EXPENSE but Inactive -> Exclude (200.0000)
+        Transaction t3 = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), owner)
+                .set(Select.field(Transaction::getCategory), category)
+                .set(Select.field(Transaction::getTransactionType), TransactionType.EXPENSE)
+                .set(Select.field(Transaction::getAmount), new BigDecimal("200.0000"))
+                .set(Select.field(Transaction::isActive), false)
+                .ignore(Select.field(Transaction::getCreatedAt))
+                .ignore(Select.field(Transaction::getId))
+                .create();
+
+        // T4: EXPENSE, Active, last month -> Exclude (30.0000)
+        Instant now = Instant.now();
+        ZonedDateTime zdt = now.atZone(ZoneId.systemDefault());
+        ZonedDateTime lastMonthZdt = zdt.minusMonths(1);
+        Instant lastMonthZdtInstant = lastMonthZdt.toInstant();
+
+        Transaction t4 = Instancio.of(Transaction.class)
+                .set(Select.field(Transaction::getUser), owner)
+                .set(Select.field(Transaction::getCategory), category)
+                .set(Select.field(Transaction::getTransactionType), TransactionType.EXPENSE)
+                .set(Select.field(Transaction::getAmount), new BigDecimal("30.0000"))
+                .set(Select.field(Transaction::isActive), true)
+                .create();
+
+        transactionRepository.saveAll(List.of(t1, t2, t3));
+
+        entityManager.getEntityManager().createNativeQuery(
+                        "INSERT INTO transactions (id, user_id, category_id, amount, transaction_type, active, created_at, updated_at) " +
+                                "VALUES (:id, :userId, :categoryId, :amount, CAST(:type AS transaction_type_enum), :active, :pastTime, :pastTime)"
+                )
+                .setParameter("id", t4.getId())
+                .setParameter("userId", t4.getUser().getId())
+                .setParameter("categoryId", t4.getCategory().getId())
+                .setParameter("amount", t4.getAmount())
+                .setParameter("type",t4.getTransactionType().name())
+                .setParameter("active", true)
+                .setParameter("pastTime", lastMonthZdtInstant)
+                .executeUpdate();
+        // Act
+        BigDecimal totalSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(
+                owner.getId(), category.getId(), LocalDate.now().getMonthValue(), LocalDate.now().getYear()
+        );
+
+        // Assert: 100.0000 + 50.0000 = 150.0000
+        assertNotNull(totalSpent, "Total spent should not be null");
+        assertEquals(0, new BigDecimal("150.0000").compareTo(totalSpent), "The calculated total spent must strictly match the sum of active transactions for the specified category, month and year");
+    }
+
+    @Test
+    @DisplayName("Should return zero based on COALESCE when no transactions spent match the criteria")
+    void calculateTotalSpentByCategoryAndMonth_ShouldReturnNullOrZero_WhenNoMatch() {
+        // Arrange
+        User owner = entityManager.persistAndFlush(Instancio.of(User.class).ignore(Select.field(User::getId)).create());
+        Category category = entityManager.persistAndFlush(
+                Instancio.of(Category.class)
+                        .set(Select.field(Category::getUser), owner)
+                        .set(Select.field(Category::isActive), true)
+                        .set(Select.field(Category::getTransactionType),  TransactionType.EXPENSE)
+                        .ignore(Select.field(Category::getId))
+                        .create()
+        );
+
+        // Act
+        BigDecimal totalSpent = transactionRepository.calculateTotalSpentByCategoryAndMonth(
+                owner.getId(), category.getId(), LocalDate.now().getMonthValue(), LocalDate.now().getYear()
+        );
+
+        // Assert: COALESCE(SUM(t.amount), 0) without a fallback parameter usually returns null in standard JPQL if no rows match, but returning null here is expected if the sum is completely empty.
+        assertEquals(BigDecimal.valueOf(0.0), totalSpent,"Should return 0 if there are no transactions matching the criteria");
     }
     //</editor-fold>
 }

@@ -43,4 +43,32 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             "AND t.transactionType = :transactionType " +
             "AND t.active = true")
     BigDecimal calculateTotalAmountByUserIdAndTransactionType(UUID userId, TransactionType transactionType);
+
+    /**
+     * Calculates the total amount spent by a specific user in a given category
+     * during a specific month and year.
+     * <p>
+     * <b>Query Details:</b>
+     * <ul>
+     * <li>Filters for transactions implicitly defined as {@code 'EXPENSE'}.</li>
+     * <li>Only includes active (non-deleted) transactions.</li>
+     * <li>Safely utilizes {@code COALESCE} to return {@code 0.0} instead of {@code null}
+     * if the user has no transactions matching the criteria.</li>
+     * </ul>
+     * </p>
+     *
+     * @param userId     the unique identifier of the user who owns the transactions
+     * @param categoryId the unique identifier of the category to aggregate
+     * @param month      the numeric representation of the month
+     * @param year       the four-digit representation of the year
+     * @return the total aggregated spent amount, guaranteed to be non-null
+     */
+    @Query("SELECT COALESCE(SUM(t.amount), 0.0) FROM  Transaction t " +
+            "WHERE t.user.id = :userId " +
+            "AND t.category.id = :categoryId " +
+            "AND t.transactionType = 'EXPENSE' " +
+            "AND t.active = true " +
+            "AND EXTRACT(MONTH FROM t.createdAt) = :month " +
+            "AND EXTRACT(YEAR FROM t.createdAt) = :year ")
+    BigDecimal calculateTotalSpentByCategoryAndMonth(UUID userId, UUID categoryId, int month, int year);
 }

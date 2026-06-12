@@ -3,6 +3,7 @@ package com.seap.smartfinancetracker.category.service;
 import com.seap.smartfinancetracker.category.dto.CategoryCreateRequest;
 import com.seap.smartfinancetracker.category.dto.CategoryResponse;
 import com.seap.smartfinancetracker.category.dto.CategoryUpdateRequest;
+import com.seap.smartfinancetracker.category.entity.Category;
 
 import java.util.List;
 import java.util.UUID;
@@ -68,4 +69,15 @@ public interface CategoryService {
      * @param categoryId ID of the category to deactivate
      */
     void deactivateCategory(UUID userId, UUID categoryId);
+
+    /**
+     * INTERNAL USE ONLY: Retrieves the Category entity for other services.
+     * Validates user ownership and active status.
+     *
+     * @param userId ID of the user who owns the category
+     * @param categoryId ID of the category to retrieve
+     * @return {@link com.seap.smartfinancetracker.category.entity.Category} entity
+     * @throws com.seap.smartfinancetracker.common.exception.BusinessException if category not found or unauthorized
+     */
+    Category getCategoryEntity(UUID userId, UUID categoryId);
 }

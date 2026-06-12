@@ -6,14 +6,18 @@ import com.seap.smartfinancetracker.category.dto.CategoryUpdateRequest;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.mapper.CategoryMapper;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.user.entity.User;
 import org.instancio.Instancio;
 import org.instancio.Select;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.ArrayList;
@@ -106,14 +110,19 @@ class CategoryServiceImplTest {
         UUID categoryId = UUID.randomUUID();
         CategoryUpdateRequest updateRequest = Instancio.create(CategoryUpdateRequest.class);
 
-        Category existingCategory = Instancio.create(Category.class);
+        User owner = Instancio.of(User.class).set(Select.field(User::getId), userId).create();
+
+        Category existingCategory = Instancio.of(Category.class)
+                .set(Select.field(Category::getId), categoryId)
+                .set(Select.field(Category::getUser), owner)
+                .create();
+
+        Category savedCategory = Instancio.create(Category.class);
         CategoryResponse expectedResponse = Instancio.create(CategoryResponse.class);
 
-        // Note: Assuming the bug in the service is fixed and it calls (categoryId, userId) properly.
-        // If you haven't fixed the bug in the service yet, you need to swap the arguments here to match your current code: (userId, categoryId)
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.of(existingCategory));
-        when(categoryRepository.save(existingCategory)).thenReturn(existingCategory);
-        when(categoryMapper.toResponse(existingCategory)).thenReturn(expectedResponse);
+        when(categoryRepository.save(any())).thenReturn(savedCategory);
+        when(categoryMapper.toResponse(savedCategory)).thenReturn(expectedResponse);
 
         // 2. Act
         CategoryResponse actualResponse = categoryService.updateCategory(userId, categoryId, updateRequest);
@@ -121,7 +130,15 @@ class CategoryServiceImplTest {
         // 3. Assert
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
-        verify(categoryRepository, times(1)).save(existingCategory);
+
+        ArgumentCaptor<Category> categoryCaptor = ArgumentCaptor.forClass(Category.class);
+        verify(categoryRepository, times(1)).save(categoryCaptor.capture());
+
+        Category updatedCategory = categoryCaptor.getValue();
+
+        assertEquals(updateRequest.categoryName(), updatedCategory.getCategoryName(), "Category name should be updated");
+        assertEquals(existingCategory.getId(), updatedCategory.getId(), "Category ID must remain the same");
+        assertEquals(existingCategory.getUser().getId(), updatedCategory.getUser().getId(), "Owner must not change");
     }
 
     @Test
@@ -136,12 +153,13 @@ class CategoryServiceImplTest {
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.empty());
 
         // 2. Act & Assert
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> categoryService.updateCategory(userId, categoryId, updateRequest)
         );
 
-        assertEquals("Category Not Found!", exception.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
+        assertEquals("Category Not Found", exception.getMessage());
         verify(categoryRepository, never()).save(any(Category.class));
     }
     //</editor-fold>
@@ -159,14 +177,20 @@ class CategoryServiceImplTest {
                 .create();
 
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.of(existingCategory));
-        when(categoryRepository.save(existingCategory)).thenReturn(existingCategory);
+        when(categoryRepository.save(any())).thenReturn(existingCategory);
 
         // 2. Act
         categoryService.deactivateCategory(userId, categoryId);
 
         // 3. Assert
-        assertFalse(existingCategory.isActive(), "The category's active status should be false");
-        verify(categoryRepository, times(1)).save(existingCategory);
+        ArgumentCaptor<Category> categoryCaptor = ArgumentCaptor.forClass(Category.class);
+
+        verify(categoryRepository, times(1)).save(categoryCaptor.capture());
+
+        Category deactivatedCategory = categoryCaptor.getValue();
+
+        assertFalse(deactivatedCategory.isActive(), "The new category copy's active status should be false");
+        assertEquals(existingCategory.getId(), deactivatedCategory.getId(), "Category ID must remain the same");
     }
 
     @Test
@@ -179,11 +203,12 @@ class CategoryServiceImplTest {
         when(categoryRepository.findByIdAndUserId(categoryId, userId)).thenReturn(Optional.empty());
 
         // 2. Act & Assert
-        assertThrows(
-                IllegalArgumentException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> categoryService.deactivateCategory(userId, categoryId)
         );
 
+        assertEquals(HttpStatus.NOT_FOUND.value(), exception.getErrorCode().getHttpStatus());
         verify(categoryRepository, never()).save(any(Category.class));
     }
     //</editor-fold>

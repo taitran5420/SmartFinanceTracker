@@ -4,13 +4,17 @@ import com.seap.smartfinancetracker.category.dto.CategoryCreateRequest;
 import com.seap.smartfinancetracker.category.dto.CategoryResponse;
 import com.seap.smartfinancetracker.category.dto.CategoryUpdateRequest;
 import com.seap.smartfinancetracker.category.entity.Category;
+import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.mapper.CategoryMapper;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.user.entity.User;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,20 +38,16 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toResponse(createdCategory);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Ensure Category belongs to user or is defaults
+     * </p>
+     */
     @Override
     @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(UUID userId, UUID categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
-
-        boolean isDefault = category.getUser() == null;
-        boolean isOwner = !isDefault && category.getUser().getId().equals(userId);
-
-        if (!isDefault && !isOwner) {
-            throw new IllegalArgumentException("You do not have permission to access this category!");
-        }
-
-        return categoryMapper.toResponse(category);
+        return categoryMapper.toResponse(getCategoryForReadOrThrow(userId, categoryId));
     }
 
     @Override
@@ -57,6 +57,7 @@ public class CategoryServiceImpl implements CategoryService {
         List<Category> defaultCategories = categoryRepository.findByUserIdIsNull();
 
         return Stream.concat(userCategories.stream(), defaultCategories.stream())
+                .filter(Objects::nonNull)
                 .map(categoryMapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -64,22 +65,64 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse updateCategory(UUID userId, UUID categoryId, CategoryUpdateRequest categoryUpdateRequest) {
-        Category existingCategory = categoryRepository.findByIdAndUserId(categoryId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
+        Category existingCategory = getOwnedCategoryOrThrow(userId, categoryId);
 
-        existingCategory.setCategoryName(categoryUpdateRequest.categoryName());
+        Category modifiedCategory = existingCategory.toBuilder()
+                .categoryName(categoryUpdateRequest.categoryName())
+                .build();
 
-        Category updatedCategory = categoryRepository.save(existingCategory);
+        Category updatedCategory = categoryRepository.save(modifiedCategory);
         return categoryMapper.toResponse(updatedCategory);
     }
 
     @Override
     @Transactional
     public void deactivateCategory(UUID userId, UUID categoryId) {
-        Category existingCategory = categoryRepository.findByIdAndUserId(categoryId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Category Not Found!"));
+        Category existingCategory = getOwnedCategoryOrThrow(userId, categoryId);
 
-        existingCategory.setActive(false);
-        categoryRepository.save(existingCategory);
+        Category deactivatedCategory = existingCategory.toBuilder()
+                .active(false)
+                .build();
+        categoryRepository.save(deactivatedCategory);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>Implementation Details:</b> Ensure Category belongs to user or is defaults
+     * </p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Category getCategoryEntity(UUID userId, UUID categoryId) {
+        return getCategoryForReadOrThrow(userId, categoryId);
+    }
+
+    /**
+     * Use for read action
+     * allow user to read default categories
+     */
+    private Category getCategoryForReadOrThrow(UUID userId, UUID categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
+
+        User categoryUser = category.getUser();
+        boolean isDefault = categoryUser == null;
+        boolean isOwner = !isDefault && categoryUser.getId().equals(userId);
+
+        if (!isDefault && !isOwner) {
+            throw new BusinessException(CategoryErrorCode.CATEGORY_ACCESS_DENIED);
+        }
+
+        return category;
+    }
+
+    /**
+     * Use for update / delete action
+     * restrict user to update default categories
+     */
+    private Category getOwnedCategoryOrThrow(UUID userId, UUID categoryId) {
+        return categoryRepository.findByIdAndUserId(categoryId, userId)
+                .orElseThrow(() -> new BusinessException(CategoryErrorCode.CATEGORY_NOT_FOUND));
     }
 }

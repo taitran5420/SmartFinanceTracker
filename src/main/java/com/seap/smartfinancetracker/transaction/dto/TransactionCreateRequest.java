@@ -1,6 +1,7 @@
 package com.seap.smartfinancetracker.transaction.dto;
 
 import com.seap.smartfinancetracker.transaction.annotation.RequireCategoryOrTransactionType;
+import com.seap.smartfinancetracker.transaction.constant.TransactionValidationMessage;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -28,8 +29,8 @@ import java.util.UUID;
 public record TransactionCreateRequest(
         UUID categoryId,
 
-        @NotNull(message = "Amount is required")
-        @Positive(message = "Amount must be strictly positive")
+        @NotNull(message = TransactionValidationMessage.AMOUNT_IS_REQUIRED)
+        @Positive(message = TransactionValidationMessage.AMOUNT_MUST_BE_POSITIVE)
         BigDecimal amount,
 
         TransactionType transactionType,

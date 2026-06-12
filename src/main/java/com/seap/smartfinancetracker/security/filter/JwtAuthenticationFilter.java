@@ -31,6 +31,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
 
+    private static final String BEARER_TOKEN_PREFIX = "Bearer ";
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+
     /**
      * Creates a new JWT authentication filter
      *
@@ -60,14 +63,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
-        final String authorizationHeader = request.getHeader("Authorization");
+        final String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
 
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_TOKEN_PREFIX)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String jwtToken = authorizationHeader.substring("Bearer ".length());
+        final String jwtToken = authorizationHeader.substring(BEARER_TOKEN_PREFIX.length());
 
         try {
             Authentication authentication = new JwtAuthenticationToken(jwtToken);
