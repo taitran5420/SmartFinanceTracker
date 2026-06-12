@@ -2,6 +2,10 @@ package com.seap.smartfinancetracker.transaction.repository;
 
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -25,6 +29,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByIdempotencyKey(UUID idempotencyKey);
+
+    /**
+     * Fetches a page of transactions matching the given specification, eagerly loading
+     * each transaction's {@link com.seap.smartfinancetracker.category.entity.Category}.
+     * <p>
+     * Overrides {@link JpaSpecificationExecutor#findAll(Specification, Pageable)} with an
+     * {@link EntityGraph} so that mapping each row's {@code categoryName} does not trigger
+     * an N+1 lazy load of the (LAZY) category association.
+     * </p>
+     *
+     * @param spec     the dynamic filter specification
+     * @param pageable the pagination information
+     * @return a page of matching transactions with their categories initialized
+     */
+    @Override
+    @EntityGraph(attributePaths = "category")
+    Page<Transaction> findAll(Specification<Transaction> spec, Pageable pageable);
 
     /**
      * Calculates the total sum of amounts for a specific user and transaction type.
