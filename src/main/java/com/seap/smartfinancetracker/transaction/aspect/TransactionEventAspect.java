@@ -34,7 +34,7 @@ import java.util.UUID;
 @Slf4j
 @Aspect
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 @RequiredArgsConstructor
 public class TransactionEventAspect {
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -50,8 +50,8 @@ public class TransactionEventAspect {
     @AfterReturning(
             pointcut = "execution(* com.seap.smartfinancetracker.transaction.service.TransactionService.createTransaction(..)) "
                     + "&& args(userId, request)",
-            returning = "response"
-    )
+            returning = "response",
+            argNames = "userId,request,response")
     public void publishTransactionCreatedEvent(UUID userId, TransactionCreateRequest request, TransactionResponse response) {
         if (response == null) {
             return;
