@@ -2,6 +2,7 @@ package com.seap.smartfinancetracker.transaction.config;
 
 import com.seap.smartfinancetracker.transaction.job.RecurringTransactionQuartzJob;
 import org.quartz.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,9 +21,7 @@ public class QuartzConfig {
     private static final String RECURRING_TRIGGER_IDENTITY = "RecurringTransactionTrigger";
 
     private static final String RECURRING_JOB_DESCRIPTION= "Processes recurring transactions";
-    private static final String RECURRING_TRIGGER_DESCRIPTION = "Cron scheduled recurring transaction every 5 minutes";
-
-    private static final String RECURRING_CRON_SCHEDULE = "0 0/5 * * * ?";
+    private static final String RECURRING_TRIGGER_DESCRIPTION = "Cron-scheduled recurring transaction processing";
 
     /**
      * Defines the Quartz Job detailing the specific task to be executed.
@@ -56,8 +55,9 @@ public class QuartzConfig {
      * @return the configured Cron {@link Trigger}
      */
     @Bean
-    public Trigger recurringTransactionTrigger(JobDetail recurringTransactionJobDetail) {
-        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule(RECURRING_CRON_SCHEDULE)
+    public Trigger recurringTransactionTrigger(JobDetail recurringTransactionJobDetail,
+                                               @Value("${recurring.cron:0 0/5 * * * ?}") String cronSchedule) {
+        CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule(cronSchedule)
                 .withMisfireHandlingInstructionDoNothing();
 
         return TriggerBuilder.newTrigger()
