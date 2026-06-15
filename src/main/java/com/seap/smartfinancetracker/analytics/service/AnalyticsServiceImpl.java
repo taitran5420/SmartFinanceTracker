@@ -1,5 +1,6 @@
 package com.seap.smartfinancetracker.analytics.service;
 
+import com.seap.smartfinancetracker.analytics.constant.AnalyticsCacheConstant;
 import com.seap.smartfinancetracker.analytics.dto.AnalyticsPeriodRequest;
 import com.seap.smartfinancetracker.analytics.dto.CategorySpendingResponse;
 import com.seap.smartfinancetracker.analytics.dto.MonthlyTrendPointResponse;
@@ -14,6 +15,7 @@ import com.seap.smartfinancetracker.transaction.repository.PeriodTotalsProjectio
 import com.seap.smartfinancetracker.transaction.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -55,6 +57,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
      */
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = AnalyticsCacheConstant.SPENDING_BY_CATEGORY_CACHE,
+            key = "@analyticsCacheService.buildKey(#userId, #request)")
     public SpendingByCategoryResponse getSpendingByCategory(UUID userId, AnalyticsPeriodRequest request) {
         Instant startDate = resolveAndValidate(request).startDate();
         Instant endDate = request.endDate();
@@ -87,6 +91,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
      */
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = AnalyticsCacheConstant.SUMMARY_CACHE,
+            key = "@analyticsCacheService.buildKey(#userId, #request)")
     public PeriodSummaryResponse getPeriodSummary(UUID userId, AnalyticsPeriodRequest request) {
         Instant startDate = resolveAndValidate(request).startDate();
         Instant endDate = request.endDate();
@@ -123,6 +129,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
      */
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = AnalyticsCacheConstant.INCOME_EXPENSE_TREND_CACHE,
+            key = "@analyticsCacheService.buildKey(#userId, #request)")
     public List<MonthlyTrendPointResponse> getIncomeExpenseTrend(UUID userId, AnalyticsPeriodRequest request) {
         Instant startDate = resolveAndValidate(request).startDate();
         Instant endDate = request.endDate();
