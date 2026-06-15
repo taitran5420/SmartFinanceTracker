@@ -129,12 +129,17 @@ class RecurringTransactionRepositoryTest {
 
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now();
+        LocalTime oneHourAgo = now.minusHours(1);
+
+        if (oneHourAgo.isAfter(now)) {
+            oneHourAgo = LocalTime.MIDNIGHT;
+        }
 
         // 1. Valid: Missed execution from yesterday
         RecurringTransaction missedYesterday = createRecurringTx(user, category, true, today.minusDays(1), LocalTime.of(12, 0));
 
         // 2. Valid: Due today, and execution time has just passed (1 hour ago)
-        RecurringTransaction dueTodayPastTime = createRecurringTx(user, category, true, today, now.minusHours(1));
+        RecurringTransaction dueTodayPastTime = createRecurringTx(user, category, true, today, oneHourAgo);
 
         // 3. Invalid: Due today, but execution time is in the future (1 hour from now)
         createRecurringTx(user, category, true, today, now.plusHours(1));
