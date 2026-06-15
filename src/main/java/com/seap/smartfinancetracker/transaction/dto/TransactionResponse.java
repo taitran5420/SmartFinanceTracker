@@ -17,6 +17,7 @@ import java.util.UUID;
  *
  * @param id              the unique identifier of the transaction
  * @param categoryId      the unique identifier of the category associated with this transaction
+ * @param categoryName    the name of the category associated with this transaction
  * @param amount          the monetary value of the transaction
  * @param transactionType the classification of the transaction (e.g., INCOME or EXPENSE)
  * @param note            any additional notes or descriptions provided for the transaction
@@ -30,6 +31,7 @@ import java.util.UUID;
 public record TransactionResponse(
         UUID id,
         UUID categoryId,
+        String categoryName,
         BigDecimal amount,
         TransactionType transactionType,
         String note,

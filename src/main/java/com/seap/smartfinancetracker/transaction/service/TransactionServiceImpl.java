@@ -1,7 +1,5 @@
 package com.seap.smartfinancetracker.transaction.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
@@ -9,8 +7,7 @@ import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
-import com.seap.smartfinancetracker.common.constant.KafkaConstant;
-import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
+import com.seap.smartfinancetracker.transaction.constant.TransactionConstant;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -25,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +31,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -58,9 +55,6 @@ public class TransactionServiceImpl implements TransactionService {
     private final BudgetRepository budgetRepository;
 
     private final TransactionMapper transactionMapper;
-
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
 
     private static final String DEFAULT_EXPENSE_CODE = "SYS_OTHER_EXPENSE";
     private static final String DEFAULT_INCOME_CODE = "SYS_OTHER_INCOME";
@@ -103,7 +97,7 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest, category, finalTransactionType);
 
         if (finalTransactionType == TransactionType.EXPENSE) {
-            validateOverdraftLimit(userId, transaction.getAmount());
+            validateOverdraftLimit(userId, transaction.getAmount(), category.getCategoryName());
         }
 
         String warningMessage = null;
@@ -122,21 +116,8 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction savedTransaction = transactionRepository.save(transaction);
 
-        TransactionCreatedEvent transactionCreatedEvent = TransactionCreatedEvent.builder()
-                .userId(userId)
-                .categoryName(category.getCategoryName())
-                .amount(savedTransaction.getAmount())
-                .transactionType(savedTransaction.getTransactionType())
-                .build();
-
-        try {
-            String jsonPayload = objectMapper.writeValueAsString(transactionCreatedEvent);
-            kafkaTemplate.send(KafkaConstant.TRANSACTION_CREATED_TOPIC, jsonPayload);
-            log.info("Published TransactionCreatedEvent to Kafka topic 'transaction-created-topic' for user: {}", userId);
-
-        } catch (JsonProcessingException e) {
-            log.error("Failed to convert event to JSON for user: {}", userId, e);
-        }
+        // The TransactionCreatedEvent is published to Kafka by TransactionEventAspect, which runs
+        // after this transaction commits — so notifications never fire for a rolled-back transaction.
         return transactionMapper.toResponse(savedTransaction, warningMessage);
     }
 
@@ -174,6 +155,8 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction.TransactionBuilder transactionBuilder = transaction.toBuilder();
 
+        Category effectiveCategory = transaction.getCategory();
+
         if (transactionUpdateRequest.categoryId() != null && !transactionUpdateRequest.categoryId().equals(transaction.getCategory().getId())) {
             Category newCategory = categoryService.getCategoryEntity(userId, transactionUpdateRequest.categoryId());
             if (newCategory == null) {
@@ -185,6 +168,7 @@ public class TransactionServiceImpl implements TransactionService {
             }
 
             transactionBuilder.category(newCategory);
+            effectiveCategory = newCategory;
         }
 
         if (transactionUpdateRequest.amount() != null) {
@@ -193,7 +177,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             if (transaction.getTransactionType().equals(TransactionType.EXPENSE))
             {
-                validateOverdraftLimit(userId, newAmount);
+                validateOverdraftLimit(userId, newAmount, effectiveCategory.getCategoryName());
             }
 
             transactionBuilder.amount(newAmount);
@@ -280,14 +264,15 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
     }
 
-    private void validateOverdraftLimit(UUID userId, BigDecimal expenseAmount) {
+    private void validateOverdraftLimit(UUID userId, BigDecimal expenseAmount, String categoryName) {
         BigDecimal currentBalance = getBalanceResponseByUserId(userId).currentBalance();
 
         BigDecimal hypotheticalBalance = currentBalance.subtract(expenseAmount);
 
         if (hypotheticalBalance.compareTo(OVERDRAFT_LIMIT) < 0) {
             log.warn("Overdraft prevented for user {}. Hypothetical balance: {}", userId, hypotheticalBalance);
-            throw new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED);
+            throw new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED,
+                    Map.of(TransactionConstant.OVERDRAFT_CATEGORY_NAME_KEY, categoryName));
         }
     }
 

@@ -1,9 +1,6 @@
 package com.seap.smartfinancetracker.transaction.processor;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.category.entity.Category;
-import com.seap.smartfinancetracker.common.constant.KafkaConstant;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
 import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
 import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;
@@ -21,7 +18,6 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -29,7 +25,6 @@ import java.util.UUID;
 import static org.instancio.Select.field;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,12 +39,6 @@ class RecurringTransactionProcessorTest {
 
     @Mock
     private RecurringTransactionMapper recurringTransactionMapper;
-
-    @Mock
-    private KafkaTemplate<String, String> kafkaTemplate;
-
-    @Mock
-    private ObjectMapper objectMapper;
 
     @InjectMocks
     private RecurringTransactionProcessor recurringTransactionProcessor;
@@ -144,24 +133,28 @@ class RecurringTransactionProcessorTest {
 
     //<editor-fold desc="Test processSingleRecurringTransaction - Exception Scenarios">
     @Test
-    @DisplayName("Should catch OVERDRAFT exception and publish event to Kafka, while still updating lifecycle")
-    void processSingleRecurringTransaction_ShouldHandleOverdraftAndSendKafkaEvent() throws JsonProcessingException {
+    @DisplayName("Should swallow OVERDRAFT exception and still advance lifecycle (alert is published by the aspect)")
+    void processSingleRecurringTransaction_ShouldSwallowOverdraftAndAdvanceLifecycle() {
         // Arrange
         UUID userId = UUID.randomUUID();
+        LocalDate currentDate = LocalDate.of(2026, 6, 15);
         Category category = Instancio.of(Category.class).set(field(Category::getCategoryName), "Netflix Subscription").create();
 
         RecurringTransaction recurringTransaction = Instancio.of(RecurringTransaction.class)
                 .set(field(RecurringTransaction::getCategory), category)
                 .set(field(RecurringTransaction::getFrequency), Frequency.MONTHLY)
+                .set(field(RecurringTransaction::getNextOccurrenceDate), currentDate)
+                .set(field(RecurringTransaction::isActive), true)
+                .ignore(field(RecurringTransaction::getEndDate))
                 .create();
 
         TransactionCreateRequest createRequest = Instancio.create(TransactionCreateRequest.class);
-        String mockJsonPayload = "{\"userId\":\"" + userId + "\", \"categoryName\":\"Netflix Subscription\"}";
 
         when(recurringTransactionMapper.toTransactionCreateRequest(recurringTransaction)).thenReturn(createRequest);
-        when(objectMapper.writeValueAsString(any())).thenReturn(mockJsonPayload);
+        when(recurringTransactionRepository.save(any(RecurringTransaction.class))).thenAnswer(i -> i.getArgument(0));
 
-        // Simulate an overdraft error thrown by the inner TransactionService
+        // Simulate an overdraft error thrown by the inner TransactionService. Publishing the alert is now the
+        // responsibility of TransactionEventAspect (@AfterThrowing), not this processor.
         doThrow(new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED))
                 .when(transactionService).createTransaction(userId, createRequest);
 
@@ -170,11 +163,10 @@ class RecurringTransactionProcessorTest {
         assertDoesNotThrow(() -> recurringTransactionProcessor.processSingleRecurringTransaction(userId, recurringTransaction));
 
         // Assert
-        // Verify Kafka event was dispatched to the correct topic
-        verify(kafkaTemplate, times(1)).send(eq(KafkaConstant.OVERDRAFT_ALERT_TOPIC), eq(mockJsonPayload));
-
-        // Verify lifecycle was STILL updated (so it can retry next month)
-        verify(recurringTransactionRepository, times(1)).save(any(RecurringTransaction.class));
+        // Lifecycle is STILL advanced (so it can retry next month) even though the money was skipped
+        verify(recurringTransactionRepository).save(recurringCaptor.capture());
+        assertEquals(LocalDate.of(2026, 7, 15), recurringCaptor.getValue().getNextOccurrenceDate(),
+                "Lifecycle must advance past the overdraft-skipped occurrence");
     }
 
     @Test
@@ -208,8 +200,6 @@ class RecurringTransactionProcessorTest {
         // Assert
         // Exactly one create attempt was made (the duplicate is rejected inside the service, not retried here)
         verify(transactionService, times(1)).createTransaction(userId, createRequest);
-        // A duplicate is not an overdraft, so no alert is published
-        verifyNoInteractions(kafkaTemplate);
         // The schedule must still advance so it does not stay stuck and re-fire forever
         verify(recurringTransactionRepository).save(recurringCaptor.capture());
         assertEquals(LocalDate.of(2026, 7, 15), recurringCaptor.getValue().getNextOccurrenceDate(),
@@ -230,9 +220,6 @@ class RecurringTransactionProcessorTest {
         assertDoesNotThrow(() -> recurringTransactionProcessor.processSingleRecurringTransaction(userId, recurringTransaction));
 
         // Assert
-        // Kafka shouldn't be called for non-overdraft errors
-        verifyNoInteractions(kafkaTemplate);
-
         // Lifecycle still updates to move past the failing record
         verify(recurringTransactionRepository, times(1)).save(any(RecurringTransaction.class));
     }

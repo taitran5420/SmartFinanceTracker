@@ -1,6 +1,8 @@
 package com.seap.smartfinancetracker.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.seap.smartfinancetracker.common.constant.KafkaConstant;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -53,8 +55,21 @@ public class KafkaConfig {
         return factory;
     }
 
+    /**
+     * Jackson 2 {@link ObjectMapper} used by the Kafka producers/consumers to (de)serialize
+     * event payloads.
+     * <p>
+     * Spring Boot 4 auto-configures a Jackson 3 ({@code tools.jackson}) mapper for the web stack,
+     * so it does not provide a {@code com.fasterxml.jackson.databind.ObjectMapper} bean. This module
+     * still depends on the Jackson 2 API, so we declare it explicitly. Modules found on the classpath
+     * (e.g. JSR-310) are registered and dates are written as ISO-8601 strings rather than timestamps.
+     * </p>
+     */
     @Bean
     public ObjectMapper objectMapper() {
-        return new ObjectMapper();
+        return JsonMapper.builder()
+                .findAndAddModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .build();
     }
 }

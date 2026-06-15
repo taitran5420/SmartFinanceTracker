@@ -1,13 +1,11 @@
 package com.seap.smartfinancetracker.transaction.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
-import com.seap.smartfinancetracker.notification.event.TransactionCreatedEvent;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -27,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -61,12 +58,6 @@ class TransactionServiceImplTest {
     @Mock
     private CategoryService categoryService;
 
-    @Mock
-    private ObjectMapper objectMapper;
-
-    @Mock
-    private KafkaTemplate<String, String> kafkaTemplate;
-
     @InjectMocks
     private TransactionServiceImpl transactionService;
     //</editor-fold>
@@ -93,7 +84,6 @@ class TransactionServiceImplTest {
         assertEquals(HttpStatus.CONFLICT.value(), exception.getErrorCode().getHttpStatus());
         assertEquals("A transaction with this idempotency key already exists", exception.getMessage());
         verify(transactionRepository, never()).save(any());
-        verify(kafkaTemplate, never()).send(anyString(), anyString()); // Đảm bảo không bắn Kafka khi lỗi
     }
 
     @Test
@@ -131,10 +121,6 @@ class TransactionServiceImplTest {
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
         when(categoryService.getCategoryEntity(eq(userId), eq(categoryId))).thenReturn(category);
 
-        // Mock Kafka Payload
-        String expectedKafkaPayload = "{\"test\":\"event\"}";
-        when(objectMapper.writeValueAsString(any(TransactionCreatedEvent.class))).thenReturn(expectedKafkaPayload);
-
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
 
@@ -142,8 +128,6 @@ class TransactionServiceImplTest {
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
         verify(transactionRepository, times(1)).save(mappedEntity);
-
-        verify(kafkaTemplate, times(1)).send(anyString(), eq(expectedKafkaPayload));
     }
 
     @Test
@@ -173,10 +157,6 @@ class TransactionServiceImplTest {
         when(transactionRepository.save(mappedEntity)).thenReturn(savedEntity);
         when(transactionMapper.toResponse(savedEntity, null)).thenReturn(expectedResponse);
 
-        // Mock Kafka Payload
-        String expectedKafkaPayload = "{\"test\":\"event2\"}";
-        when(objectMapper.writeValueAsString(any(TransactionCreatedEvent.class))).thenReturn(expectedKafkaPayload);
-
         // 2. Act
         TransactionResponse actualResponse = transactionService.createTransaction(userId, request);
 
@@ -184,8 +164,6 @@ class TransactionServiceImplTest {
         assertNotNull(actualResponse);
         assertEquals(expectedResponse, actualResponse);
         verify(transactionRepository, times(1)).save(mappedEntity);
-
-        verify(kafkaTemplate, times(1)).send(anyString(), eq(expectedKafkaPayload));
     }
     //</editor-fold>
 
