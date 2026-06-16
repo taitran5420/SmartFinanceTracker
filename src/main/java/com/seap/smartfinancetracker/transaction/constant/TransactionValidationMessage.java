@@ -7,8 +7,7 @@ package com.seap.smartfinancetracker.transaction.constant;
  * </p>
  */
 public final class TransactionValidationMessage {
-    private TransactionValidationMessage() {
-    }
+    private TransactionValidationMessage() {}
 
     public static final String EITHER_CATEGORY_OR_TRANSACTION_TYPE_IS_REQUIRED = "Either categoryId or transactionType must be provided!";
 
