@@ -4,6 +4,7 @@ import com.seap.smartfinancetracker.budget.entity.Budget;
 import com.seap.smartfinancetracker.budget.repository.BudgetRepository;
 import com.seap.smartfinancetracker.category.entity.Category;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
+import com.seap.smartfinancetracker.notification.repository.NotificationRepository;
 import com.seap.smartfinancetracker.security.mapper.UserPrincipalMapper;
 import com.seap.smartfinancetracker.security.model.UserPrincipal;
 import com.seap.smartfinancetracker.security.service.JwtService;
@@ -26,9 +27,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -84,7 +86,13 @@ class TransactionControllerIntegrationTest {
     private BudgetRepository budgetRepository;
 
     @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
     private UserPrincipalMapper userPrincipalMapper;
+
+    @MockitoBean
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     @Autowired
     private JwtService jwtService;
@@ -96,7 +104,9 @@ class TransactionControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
         transactionRepository.deleteAll();
+        budgetRepository.deleteAll();
         categoryRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -409,7 +419,6 @@ class TransactionControllerIntegrationTest {
     //<editor-fold desc="POST /transactions (Budget Evaluation)">
     @ParameterizedTest(name = "Amount: {0}, Expected over budget flag: {1}, Expected warning: {2}")
     @MethodSource("provideBudgetTestCases")
-    @Transactional
     void shouldHandleTransactionOverBudgetFlagAndBudgetWarnings(BigDecimal amount, boolean isOverBudget, String expectedWarningMessage) throws Exception {
         // Arrange
         Category expenseCategory = Instancio.of(Category.class)

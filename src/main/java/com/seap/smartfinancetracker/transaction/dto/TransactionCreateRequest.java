@@ -5,6 +5,7 @@ import com.seap.smartfinancetracker.transaction.constant.TransactionValidationMe
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -26,6 +27,7 @@ import java.util.UUID;
  *                        without accidentally creating duplicate transactions
  */
 @RequireCategoryOrTransactionType
+@Builder
 public record TransactionCreateRequest(
         UUID categoryId,
 

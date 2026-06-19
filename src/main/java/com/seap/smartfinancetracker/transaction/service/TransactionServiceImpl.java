@@ -7,6 +7,7 @@ import com.seap.smartfinancetracker.category.exception.CategoryErrorCode;
 import com.seap.smartfinancetracker.category.repository.CategoryRepository;
 import com.seap.smartfinancetracker.category.service.CategoryService;
 import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.transaction.constant.TransactionConstant;
 import com.seap.smartfinancetracker.transaction.dto.*;
 import com.seap.smartfinancetracker.transaction.entity.Transaction;
 import com.seap.smartfinancetracker.transaction.enums.TransactionType;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -29,6 +31,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -78,7 +81,7 @@ public class TransactionServiceImpl implements TransactionService {
      * </p>
      */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TransactionResponse createTransaction(UUID userId, TransactionCreateRequest transactionCreateRequest) {
         if (transactionCreateRequest.idempotencyKey() != null && transactionRepository.existsByIdempotencyKey(transactionCreateRequest.idempotencyKey())) {
             log.warn("Duplicate transaction attempt detected with idempotency key: {}", transactionCreateRequest.idempotencyKey());
@@ -94,7 +97,7 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction transaction = transactionMapper.toEntity(userId, transactionCreateRequest, category, finalTransactionType);
 
         if (finalTransactionType == TransactionType.EXPENSE) {
-            validateOverdraftLimit(userId, transaction.getAmount());
+            validateOverdraftLimit(userId, transaction.getAmount(), category.getCategoryName());
         }
 
         String warningMessage = null;
@@ -112,6 +115,9 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // The TransactionCreatedEvent is published to Kafka by TransactionEventAspect, which runs
+        // after this transaction commits — so notifications never fire for a rolled-back transaction.
         return transactionMapper.toResponse(savedTransaction, warningMessage);
     }
 
@@ -149,6 +155,8 @@ public class TransactionServiceImpl implements TransactionService {
 
         Transaction.TransactionBuilder transactionBuilder = transaction.toBuilder();
 
+        Category effectiveCategory = transaction.getCategory();
+
         if (transactionUpdateRequest.categoryId() != null && !transactionUpdateRequest.categoryId().equals(transaction.getCategory().getId())) {
             Category newCategory = categoryService.getCategoryEntity(userId, transactionUpdateRequest.categoryId());
             if (newCategory == null) {
@@ -160,6 +168,7 @@ public class TransactionServiceImpl implements TransactionService {
             }
 
             transactionBuilder.category(newCategory);
+            effectiveCategory = newCategory;
         }
 
         if (transactionUpdateRequest.amount() != null) {
@@ -168,7 +177,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             if (transaction.getTransactionType().equals(TransactionType.EXPENSE))
             {
-                validateOverdraftLimit(userId, newAmount);
+                validateOverdraftLimit(userId, newAmount, effectiveCategory.getCategoryName());
             }
 
             transactionBuilder.amount(newAmount);
@@ -255,14 +264,15 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
     }
 
-    private void validateOverdraftLimit(UUID userId, BigDecimal expenseAmount) {
+    private void validateOverdraftLimit(UUID userId, BigDecimal expenseAmount, String categoryName) {
         BigDecimal currentBalance = getBalanceResponseByUserId(userId).currentBalance();
 
         BigDecimal hypotheticalBalance = currentBalance.subtract(expenseAmount);
 
         if (hypotheticalBalance.compareTo(OVERDRAFT_LIMIT) < 0) {
             log.warn("Overdraft prevented for user {}. Hypothetical balance: {}", userId, hypotheticalBalance);
-            throw new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED);
+            throw new BusinessException(TransactionErrorCode.OVERDRAFT_LIMIT_EXCEEDED,
+                    Map.of(TransactionConstant.OVERDRAFT_CATEGORY_NAME_KEY, categoryName));
         }
     }
 

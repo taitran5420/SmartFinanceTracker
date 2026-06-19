@@ -1,0 +1,146 @@
+package com.seap.smartfinancetracker.transaction.processor;
+
+import com.seap.smartfinancetracker.common.config.ThreadPoolConfig;
+import com.seap.smartfinancetracker.common.exception.BusinessException;
+import com.seap.smartfinancetracker.transaction.dto.TransactionCreateRequest;
+import com.seap.smartfinancetracker.transaction.entity.RecurringTransaction;
+import com.seap.smartfinancetracker.transaction.enums.Frequency;
+import com.seap.smartfinancetracker.transaction.mapper.RecurringTransactionMapper;
+import com.seap.smartfinancetracker.transaction.repository.RecurringTransactionRepository;
+import com.seap.smartfinancetracker.transaction.service.TransactionService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Core processing engine for executing due recurring transactions.
+ * <p>
+ * This component acts as the workhorse of the automated scheduling system. It receives
+ * batches of due transactions and processes them asynchronously, ensuring high throughput
+ * and strict transactional boundaries.
+ * </p>
+ * <p>
+ * <b>Advanced Spring AOP Architecture:</b>
+ * Utilizes a self-injected lazy proxy ({@code self}) to bypass Spring's internal method call
+ * limitations.
+ * </p>
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class RecurringTransactionProcessor {
+    private final TransactionService transactionService;
+    private final RecurringTransactionRepository recurringTransactionRepository;
+    private final RecurringTransactionMapper recurringTransactionMapper;
+
+    /**
+     * Self-reference proxy to enable Spring AOP capabilities (like @Transactional) on internal method calls.
+     */
+    @Autowired
+    @Lazy
+    private RecurringTransactionProcessor self;
+
+    /**
+     * Processes a batch of due recurring transactions for a specific user asynchronously.
+     * <p>
+     * Groups transactions by user and delegates them to a specialized thread pool
+     * ({@code RECURRING_TASK_EXECUTOR_BEAN_NAME}). This prevents the Quartz scheduler thread
+     * from being blocked and allows horizontal scaling of transaction processing.
+     * </p>
+     *
+     * @param userId                the ID of the user whose scheduled transactions are due
+     * @param recurringTransactions the list of configurations that need to be executed
+     */
+    @Async(ThreadPoolConfig.RECURRING_TASK_EXECUTOR_BEAN_NAME)
+    public void processRecurringTransactionForUser(UUID userId, List<RecurringTransaction> recurringTransactions) {
+        log.info("Thread {} is processing {} transactions sequentially for user: {}",
+                Thread.currentThread().getName(), recurringTransactions.size(), userId);
+        recurringTransactions.forEach((recurringTransaction) ->
+                self.processSingleRecurringTransaction(userId, recurringTransaction));
+    }
+
+    /**
+     * Executes a single recurring transaction in full isolation.
+     * <p>
+     * <b>Resilience & Isolation:</b> Marked with {@code Propagation.REQUIRES_NEW}. If this execution
+     * violates a business rule (e.g., overdraft), it rolls back cleanly without affecting other
+     * scheduled transactions in the current batch.
+     * </p>
+     * <p>
+     * <b>Event-Driven Integration:</b> If an execution fails because of a business rule (e.g. an overdraft
+     * limit), the expected {@link BusinessException} is caught and swallowed here so the rest of the batch
+     * proceeds. The matching {@code OverdraftAlertEvent} is published by {@code TransactionEventAspect} when
+     * {@code createTransaction} throws, keeping the Notification module fully decoupled from this block.
+     * </p>
+     *
+     * @param userId               the user executing the transaction
+     * @param recurringTransaction the specific configuration schedule to process
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void processSingleRecurringTransaction(UUID userId, RecurringTransaction recurringTransaction) {
+        try {
+            TransactionCreateRequest transactionCreateRequest = recurringTransactionMapper
+                    .toTransactionCreateRequest(recurringTransaction);
+
+            transactionService.createTransaction(userId, transactionCreateRequest);
+            log.info("Auto-executed transaction {} for user {}", recurringTransaction.getId(), userId);
+        } catch (BusinessException e) {
+            // Business-rule rejections (e.g. overdraft) are expected and isolated: log and continue so the
+            // rest of the batch still runs. The overdraft alert itself is published by TransactionEventAspect
+            // when createTransaction throws OVERDRAFT_LIMIT_EXCEEDED.
+            log.warn("Skipped transaction {} due to rule violation: {}", recurringTransaction.getId(), e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error executing recurring transaction {}", recurringTransaction.getId(), e);
+        }
+
+        updateTransactionLifecycle(recurringTransaction);
+    }
+
+    /**
+     * Updates the chronological state of the schedule after an execution attempt.
+     * <p>
+     * Advances the {@code nextOccurrenceDate} based on the defined frequency. If the schedule
+     * was a {@code ONCE} event or has surpassed its explicit {@code endDate}, it is automatically
+     * marked as inactive to prevent future phantom executions.
+     * </p>
+     *
+     * @param recurringTransaction the schedule entity to update
+     */
+    private void updateTransactionLifecycle(RecurringTransaction recurringTransaction) {
+        RecurringTransaction.RecurringTransactionBuilder builder = recurringTransaction.toBuilder();
+
+        if (recurringTransaction.getFrequency() == Frequency.ONCE) {
+            builder.active(false);
+            log.info("Scheduled ONE-TIME transaction {} completed and is now inactive", recurringTransaction.getId());
+        }
+        else {
+            LocalDate nextDate = calculateNextOccurrence(recurringTransaction.getNextOccurrenceDate(), recurringTransaction.getFrequency());
+            builder.nextOccurrenceDate(nextDate);
+
+            if (recurringTransaction.getEndDate() != null && nextDate.isAfter(recurringTransaction.getEndDate())) {
+                builder.active(false);
+                log.info("Recurring transaction {} reached its end date and is now inactive", recurringTransaction.getId());
+            }
+        }
+
+        recurringTransactionRepository.save(builder.build());
+    }
+
+    private LocalDate calculateNextOccurrence(LocalDate current, Frequency frequency) {
+        return switch (frequency) {
+            case ONCE -> current;
+            case DAILY -> current.plusDays(1);
+            case WEEKLY -> current.plusWeeks(1);
+            case MONTHLY -> current.plusMonths(1);
+        };
+    }
+}

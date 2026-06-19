@@ -79,6 +79,7 @@ public class TransactionMapper {
         return TransactionResponse.builder()
                 .id(transaction.getId())
                 .categoryId(transaction.getCategory().getId())
+                .categoryName(transaction.getCategory().getCategoryName())
                 .amount(transaction.getAmount())
                 .transactionType(transaction.getTransactionType())
                 .note(transaction.getNote())

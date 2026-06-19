@@ -21,7 +21,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -38,6 +37,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @ActiveProfiles("test")
+@SuppressWarnings("unused")
 class TransactionServiceImplTest {
     //<editor-fold desc="Setup & Configurations">
     @Mock
@@ -88,41 +88,28 @@ class TransactionServiceImplTest {
 
     @Test
     @DisplayName("Should successfully create a transaction using a specific user category")
-    void createTransaction_ShouldSucceed_WhenUsingValidUserCategory() {
+    void createTransaction_ShouldSucceed_WhenUsingValidUserCategory() throws Exception {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
         TransactionType type = TransactionType.EXPENSE;
 
         when(userRepository.findByIdWithPessimisticLock(userId))
-                .thenReturn(Optional.of(Instancio.of(User.class)
-                        .set(Select.field(User::getId), userId)
-                        .create()));
+                .thenReturn(Optional.of(Instancio.of(User.class).set(Select.field(User::getId), userId).create()));
 
-        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
-                Mockito.any(UUID.class),
-                Mockito.eq(TransactionType.INCOME)
-        )).thenReturn(BigDecimal.valueOf(50000));
-
-        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(
-                Mockito.any(UUID.class),
-                Mockito.eq(TransactionType.EXPENSE)
-        )).thenReturn(BigDecimal.ZERO);
-
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.INCOME)))
+                .thenReturn(BigDecimal.valueOf(50000));
+        when(transactionRepository.calculateTotalAmountByUserIdAndTransactionType(any(UUID.class), eq(TransactionType.EXPENSE)))
+                .thenReturn(BigDecimal.ZERO);
         when(budgetRepository.findByUserIdAndCategoryIdAndBudgetMonthAndBudgetYear(any(UUID.class), any(UUID.class), anyInt(), anyInt()))
                 .thenReturn(Optional.empty());
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
                 .set(Select.field("categoryId"), categoryId)
-                .set(Select.field("transactionType"), type)
-                .create();
+                .set(Select.field("transactionType"), type).create();
 
         User owner = Instancio.of(User.class).set(Select.field(User::getId), userId).create();
-        Category category = Instancio.of(Category.class)
-                .set(Select.field(Category::getId), categoryId)
-                .set(Select.field(Category::getUser), owner)
-                .set(Select.field(Category::getTransactionType), type)
-                .create();
+        Category category = Instancio.of(Category.class).set(Select.field(Category::getId), categoryId).set(Select.field(Category::getUser), owner).set(Select.field(Category::getTransactionType), type).create();
 
         Transaction mappedEntity = Instancio.create(Transaction.class);
         Transaction savedEntity = Instancio.create(Transaction.class);
@@ -145,26 +132,20 @@ class TransactionServiceImplTest {
 
     @Test
     @DisplayName("Should successfully create a transaction using a default system category when categoryId is null")
-    void createTransaction_ShouldSucceed_WhenUsingDefaultSystemCategory() {
+    void createTransaction_ShouldSucceed_WhenUsingDefaultSystemCategory() throws Exception {
         // 1. Arrange
         UUID userId = UUID.randomUUID();
         TransactionType type = TransactionType.INCOME;
         String systemDefaultCategoryCode = "SYS_OTHER_INCOME";
 
         when(userRepository.findByIdWithPessimisticLock(userId))
-                .thenReturn(Optional.of(Instancio.of(User.class)
-                        .set(Select.field(User::getId), userId)
-                        .create()));
+                .thenReturn(Optional.of(Instancio.of(User.class).set(Select.field(User::getId), userId).create()));
 
         TransactionCreateRequest request = Instancio.of(TransactionCreateRequest.class)
-                .set(Select.field("categoryId"), null)
-                .set(Select.field("transactionType"), type)
-                .create();
+                .set(Select.field("categoryId"), null).set(Select.field("transactionType"), type).create();
 
         Category defaultCategory = Instancio.of(Category.class)
-                .set(Select.field(Category::getUser), null)
-                .set(Select.field(Category::getTransactionType), type)
-                .create();
+                .set(Select.field(Category::getUser), null).set(Select.field(Category::getTransactionType), type).create();
 
         Transaction mappedEntity = Instancio.create(Transaction.class);
         Transaction savedEntity = Instancio.create(Transaction.class);
@@ -588,4 +569,5 @@ class TransactionServiceImplTest {
                 .thenReturn(currentSpent);
     }
     //</editor-fold>
+
 }
