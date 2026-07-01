@@ -1,0 +1,61 @@
+# GraphQL schema for the analytics domain.
+#
+# A single nested `analytics` query exposes the three analytics sections as sub-fields, so a
+# client fetches only the sections it needs in one round-trip. Each sub-field is resolved
+# lazily by a @SchemaMapping method that delegates to the existing AnalyticsService (which
+# keeps its per-method Redis caching, date-range validation, and userId scoping).
+#
+# Type/field names deliberately match the Java DTO record component names so Spring for
+# GraphQL maps them by property. Custom scalars are registered in GraphqlConfig.
+
+scalar DateTime
+scalar BigDecimal
+scalar Long
+scalar UUID
+
+type Query {
+    "Analytics over the authenticated user's transactions within an optional date window."
+    analytics(startDate: DateTime, endDate: DateTime): Analytics!
+}
+
+"Container for the analytics sections; each field is computed only when selected."
+type Analytics {
+    "High-level totals, net, transaction count and the top spending category."
+    summary: PeriodSummary!
+    "Per-category expense breakdown, ordered by descending spend."
+    spendingByCategory: SpendingByCategory!
+    "Month-by-month income-versus-expense time series, chronologically ordered."
+    incomeExpenseTrend: [MonthlyTrendPoint!]!
+}
+
+type PeriodSummary {
+    startDate: DateTime
+    endDate: DateTime
+    totalIncome: BigDecimal!
+    totalExpense: BigDecimal!
+    net: BigDecimal!
+    transactionCount: Long!
+    topCategoryId: UUID
+    topCategoryName: String
+    topCategoryAmount: BigDecimal!
+}
+
+type SpendingByCategory {
+    totalExpense: BigDecimal!
+    categories: [CategorySpending!]!
+}
+
+type CategorySpending {
+    categoryId: UUID!
+    categoryName: String!
+    totalSpent: BigDecimal!
+    percentage: Float!
+}
+
+type MonthlyTrendPoint {
+    year: Int!
+    month: Int!
+    totalIncome: BigDecimal!
+    totalExpense: BigDecimal!
+    net: BigDecimal!
+}
