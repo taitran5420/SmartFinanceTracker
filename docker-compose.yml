@@ -66,6 +66,27 @@ services:
     volumes:
       - redisinsight_data:/data
 
+  app:
+    build: .
+    container_name: smart_finance_app
+    restart: always
+    profiles: ["full"]
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+    env_file:
+      - .env
+    environment:
+      # Override host-relative values from .env with in-network service names/ports —
+      # everything else (credentials, JWT secret, etc.) is inherited from env_file above.
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_DATABASE}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8080:8080"
+
 volumes:
   postgres_data:
   kafka_data:
