@@ -57,7 +57,17 @@ services:
     volumes:
       - redis_data:/data
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: smart_finance_redis_ui
+    restart: always
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight_data:/data
+
 volumes:
   postgres_data:
   kafka_data:
   redis_data:
+  redisinsight_data:
