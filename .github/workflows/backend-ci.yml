@@ -1,0 +1,51 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run tests
+        # Testcontainers spins up its own Postgres; these three have no defaults in
+        # application.yaml so the Spring context can't even start without them, but
+        # nothing in the suite needs a real Kafka broker reachable — only the
+        # property needs to resolve. Throwaway CI-only values, nothing to protect.
+        env:
+          JWT_SECRET: dGVzdC1vbmx5LXNlY3JldC1rZXktbm90LWZvci1wcm9kdWN0aW9uLXVzZQ==
+          JWT_EXPIRATION: 86400000
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+        run: ./mvnw test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Package
+        run: ./mvnw package -DskipTests
+
+      - name: Build Docker image
+        run: docker build -t smartfinancetracker-backend:${{ github.sha }} .
