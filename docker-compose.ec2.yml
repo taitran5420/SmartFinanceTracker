@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Standalone prod compose file for the EC2 host — deliberately NOT merged with
+# docker-compose.yml. Only what should actually run in prod: no kafka-ui, no
+# redisinsight (dev-only tooling), app pulls a prebuilt ECR image instead of
+# building from source. Run with: docker compose -f docker-compose.ec2.yml
+# --profile full up -d  (mirrors the local `--profile full` convention).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart_finance_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # no ports: — only reachable from other containers on this Compose network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: smart_finance_kafka
+    restart: always
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    # No host port mapping: the app reaches Kafka over the internal Compose
+    # network at kafka:29092. Nothing outside this host needs port 9092.
+
+  redis:
+    image: redis:7-alpine
+    container_name: smart_finance_redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    # No host port mapping, same reasoning as kafka above.
+
+  app:
+    image: 310697202929.dkr.ecr.ap-southeast-1.amazonaws.com/smartfinancetracker-backend:latest
+    container_name: smart_finance_app
+    restart: always
+    profiles: ["full"]
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_DATABASE}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+  kafka_data:
+  redis_data:
