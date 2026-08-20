@@ -21,3 +21,12 @@ usermod -aG docker ubuntu
 
 systemctl enable docker
 systemctl start docker
+
+# AWS CLI: needed on the host itself to `aws ecr get-login-password` before
+# `docker compose pull` can reach the private ECR repos (auth comes from the
+# instance's IAM role via the metadata service — no keys involved).
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+apt-get install -y unzip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install
+rm -rf /tmp/awscliv2.zip /tmp/aws
