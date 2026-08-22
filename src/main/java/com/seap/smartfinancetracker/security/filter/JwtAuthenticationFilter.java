@@ -19,7 +19,8 @@ import java.io.IOException;
  *
  * <p>This filter:
  * <ul>
- *     <li>Extracts JWT token from the Authorization header</li>
+ *     <li>Extracts JWT token from the Authorization header, falling back to a
+ *     {@code ?token=} query param (needed for EventSource, which can't set headers)</li>
  *     <li>Validates the token through the AuthenticationManager</li>
  *     <li>If valid, stores the authenticated user in SecurityContextHolder</li>
  *     <li>If invalid, clears the security context and continues the filter chain</li>
@@ -33,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_TOKEN_PREFIX = "Bearer ";
     private static final String AUTHORIZATION_HEADER = "Authorization";
+    private static final String TOKEN_QUERY_PARAM = "token";
 
     /**
      * Creates a new JWT authentication filter
@@ -46,7 +48,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /**
      * Performs JWT authentication for the current HTTP request.
      * <p>
-     * The filter checks the {@code Authorization} header for a Bearer token.
+     * The filter checks the {@code Authorization} header for a Bearer token,
+     * falling back to a {@code ?token=} query param if the header is absent.
      * If a valid JWT token is present, authentication is delegated to the
      * {@link AuthenticationManager}. Upon successful authentication, the
      * resulting {@link Authentication} object is stored in the
@@ -64,13 +67,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
         final String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
+        final String jwtToken;
 
-        if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_TOKEN_PREFIX)) {
+        if (authorizationHeader != null && authorizationHeader.startsWith(BEARER_TOKEN_PREFIX)) {
+            jwtToken = authorizationHeader.substring(BEARER_TOKEN_PREFIX.length());
+        } else {
+            // Falls back to a ?token= query param when there's no Authorization
+            // header — needed for EventSource (used by the SSE notification
+            // stream), which can't set custom headers.
+            jwtToken = request.getParameter(TOKEN_QUERY_PARAM);
+        }
+
+        if (jwtToken == null) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        final String jwtToken = authorizationHeader.substring(BEARER_TOKEN_PREFIX.length());
 
         try {
             Authentication authentication = new JwtAuthenticationToken(jwtToken);
