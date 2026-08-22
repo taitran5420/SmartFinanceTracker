@@ -74,12 +74,14 @@ services:
     container_name: smart_finance_frontend
     restart: always
     profiles: ["full"]
+    depends_on:
+      - app
     ports:
       - "80:80"
-    # No depends_on/env_file: it's a static SPA served by Nginx — the
-    # browser talks to the backend directly (apiBaseUrl baked in at image
-    # build time via environment.prod.ts), so this container has no
-    # runtime dependency on app/postgres/kafka/redis being up first.
+    # No env_file: it's a static SPA served by Nginx. Nginx does proxy
+    # /api/ to the app container though (see nginx.conf), which is why
+    # depends_on: app matters here — Nginx resolves that hostname via
+    # Docker's DNS at startup, so app's container needs to exist first.
 
 volumes:
   postgres_data:
