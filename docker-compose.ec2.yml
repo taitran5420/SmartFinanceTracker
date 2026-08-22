@@ -69,6 +69,18 @@ services:
     ports:
       - "8080:8080"
 
+  frontend:
+    image: 310697202929.dkr.ecr.ap-southeast-1.amazonaws.com/smartfinancetracker-frontend:latest
+    container_name: smart_finance_frontend
+    restart: always
+    profiles: ["full"]
+    ports:
+      - "80:80"
+    # No depends_on/env_file: it's a static SPA served by Nginx — the
+    # browser talks to the backend directly (apiBaseUrl baked in at image
+    # build time via environment.prod.ts), so this container has no
+    # runtime dependency on app/postgres/kafka/redis being up first.
+
 volumes:
   postgres_data:
   kafka_data:
