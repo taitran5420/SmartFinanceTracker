@@ -78,12 +78,24 @@ services:
       - app
     ports:
       - "80:80"
-    # No env_file: it's a static SPA served by Nginx. Nginx does proxy
-    # /api/ to the app container though (see nginx.conf), which is why
-    # depends_on: app matters here — Nginx resolves that hostname via
-    # Docker's DNS at startup, so app's container needs to exist first.
+      - "443:443"
+    environment:
+      # Not a secret (it's a public DNS name) — plain value here rather than
+      # routed through .env. Fill in with the actual DuckDNS domain.
+      DUCKDNS_DOMAIN: smartfinance.duckdns.org
+    volumes:
+      # Persists Caddy's issued cert + ACME account state across container
+      # recreates (every deploy). Without this, each `docker compose up`
+      # after an image update would make Caddy re-request a cert from
+      # Let's Encrypt instead of reusing the one it already has.
+      - caddy_data:/data
+      - caddy_config:/config
+    # Caddy resolves the app hostname via Docker's DNS at startup to proxy
+    # /api/, which is why depends_on: app matters here.
 
 volumes:
   postgres_data:
   kafka_data:
   redis_data:
+  caddy_data:
+  caddy_config:
