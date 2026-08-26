@@ -56,6 +56,20 @@ server:
   servlet:
     context-path: /api
 
+# Separate port from `server.port` (default 8080) — Spring Boot serves actuator
+# on its own embedded connector here, outside SecurityConfiguration's JWT filter
+# chain entirely (that chain only wires up on the main server port). Safe to
+# leave unauthenticated because this port is never published to the Docker
+# host in docker-compose.ec2.yml, so only containers on the internal Compose
+# network (i.e. Prometheus) can ever reach it.
+management:
+  server:
+    port: 9091
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
 springdoc:
   api-docs:
     path: /openapi.json

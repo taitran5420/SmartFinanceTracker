@@ -56,6 +56,7 @@ jobs:
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRATION=${{ secrets.JWT_EXPIRATION }}
             CORS_ALLOWED_ORIGINS=${{ vars.CORS_ALLOWED_ORIGINS }}
+            GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GF_SECURITY_ADMIN_PASSWORD }}
             ENVEOF
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ needs.build-and-push.outputs.registry }}
             docker compose -f docker-compose.ec2.yml --profile full pull
