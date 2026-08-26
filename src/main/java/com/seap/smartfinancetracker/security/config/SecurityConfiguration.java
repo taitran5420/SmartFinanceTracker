@@ -4,8 +4,10 @@ import com.seap.smartfinancetracker.security.filter.JwtAuthenticationFilter;
 import com.seap.smartfinancetracker.security.provider.JwtAuthenticationProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -42,6 +44,28 @@ public class SecurityConfiguration {
     private final DaoAuthenticationProvider daoAuthenticationProvider;
 
     /**
+     * Security chain for actuator endpoints on the separate management port ({@code 9091}).
+     *
+     * <p>Spring Boot puts actuator on its own embedded connector via {@code management.server.port},
+     * but the same {@code FilterChainProxy} still governs it — it doesn't automatically inherit the
+     * main chain's rules, nor is it exempt from Spring Security's own default lockdown for actuator
+     * endpoints. {@link EndpointRequest#toAnyEndpoint()} matches only actuator paths (which only exist
+     * on the management port anyway), so this permits them without touching the main app's auth rules.
+     * Safe to leave open because 9091 is never published to the Docker host — only Prometheus, on the
+     * same internal Compose network, can reach it.</p>
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) {
+        http
+                .securityMatcher(EndpointRequest.toAnyEndpoint())
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests.anyRequest().permitAll());
+
+        return http.build();
+    }
+
+    /**
      * Configures the application's security filter chain.
      *
      * @param http the {@link HttpSecurity} configuration object
@@ -49,6 +73,7 @@ public class SecurityConfiguration {
      * @return the configured {@link SecurityFilterChain}
      */
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) {
         JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(authenticationManager);
 
