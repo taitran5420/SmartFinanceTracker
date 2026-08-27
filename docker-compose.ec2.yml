@@ -6,11 +6,25 @@ version: '3.8'
 # building from source. Run with: docker compose -f docker-compose.ec2.yml
 # --profile full up -d  (mirrors the local `--profile full` convention).
 
+# Shared CloudWatch Logs config (Phase 6) — one log group for the whole host,
+# streams distinguished by container name via `tag`. `awslogs-create-group`
+# lets the driver create the group on first log line (needs
+# logs:CreateLogGroup on the EC2 instance role); it can't set a retention
+# policy though, so that's a one-time manual step once the group exists.
+x-logging: &awslogs
+  driver: awslogs
+  options:
+    awslogs-region: ap-southeast-1
+    awslogs-group: /smartfinancetracker/ec2
+    awslogs-create-group: "true"
+    tag: "{{.Name}}"
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: smart_finance_db
     restart: always
+    logging: *awslogs
     environment:
       POSTGRES_DB: ${DB_DATABASE}
       POSTGRES_USER: ${DB_USERNAME}
@@ -23,6 +37,7 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: smart_finance_kafka
     restart: always
+    logging: *awslogs
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
@@ -46,6 +61,7 @@ services:
     image: redis:7-alpine
     container_name: smart_finance_redis
     restart: always
+    logging: *awslogs
     volumes:
       - redis_data:/data
     # No host port mapping, same reasoning as kafka above.
@@ -55,6 +71,7 @@ services:
     container_name: smart_finance_app
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     depends_on:
       - postgres
       - kafka
@@ -74,6 +91,7 @@ services:
     container_name: smart_finance_frontend
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     depends_on:
       - app
       - grafana
@@ -100,6 +118,7 @@ services:
     container_name: smart_finance_prometheus
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -112,6 +131,7 @@ services:
     container_name: smart_finance_grafana
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     depends_on:
       - prometheus
     env_file:
@@ -129,6 +149,7 @@ services:
     container_name: smart_finance_node_exporter
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     pid: host
     volumes:
       - /proc:/host/proc:ro
@@ -146,6 +167,7 @@ services:
     container_name: smart_finance_cadvisor
     restart: always
     profiles: ["full"]
+    logging: *awslogs
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
