@@ -8,3 +8,15 @@ datasources:
     uid: prometheus
     isDefault: true
     editable: false
+
+  - name: CloudWatch
+    type: cloudwatch
+    uid: cloudwatch
+    editable: false
+    jsonData:
+      # authType "default" uses the standard AWS credential chain — on this
+      # host that resolves to the EC2 instance role (ec2-ecr-pull-role) via
+      # the instance metadata service, same no-static-keys pattern as the
+      # app container's ECR pulls. No access/secret key fields needed here.
+      authType: default
+      defaultRegion: ap-southeast-1
