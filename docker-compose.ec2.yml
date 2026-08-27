@@ -7,16 +7,18 @@ version: '3.8'
 # --profile full up -d  (mirrors the local `--profile full` convention).
 
 # Shared CloudWatch Logs config (Phase 6) — one log group for the whole host,
-# streams distinguished by container name via `tag`. `awslogs-create-group`
-# lets the driver create the group on first log line (needs
-# logs:CreateLogGroup on the EC2 instance role); it can't set a retention
-# policy though, so that's a one-time manual step once the group exists.
+# streams distinguished by container name via `tag`. The log group is
+# pre-created manually (see tracking doc) rather than via `awslogs-create-group`
+# — that option makes every container race to CreateLogGroup on a cold start
+# (Compose starts most services in parallel), and CloudWatch's CreateLogGroup
+# API 400s with OperationAbortedException on concurrent calls for the same
+# name. Pre-creating once avoids the race entirely and is also where
+# retention gets set (the driver can never set retention itself either way).
 x-logging: &awslogs
   driver: awslogs
   options:
     awslogs-region: ap-southeast-1
     awslogs-group: /smartfinancetracker/ec2
-    awslogs-create-group: "true"
     tag: "{{.Name}}"
 
 services:
