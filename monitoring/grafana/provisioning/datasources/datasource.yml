@@ -20,3 +20,8 @@ datasources:
       # app container's ECR pulls. No access/secret key fields needed here.
       authType: default
       defaultRegion: ap-southeast-1
+      # Pre-fills the log group field in the query editor so it doesn't
+      # start empty — convenience only, not required for querying (the
+      # log group can always be typed/picked manually too).
+      defaultLogGroups:
+        - /smartfinancetracker/ec2
