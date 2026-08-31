@@ -82,6 +82,10 @@ public class SecurityConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .requestMatchers("/openapi.json", "/v3/api-docs/**", "/docs", "/docs/**", "/scalar/**", "/error").permitAll()
+                        // GraphiQL is the in-browser explorer UI (static assets). The /graphql
+                        // query endpoint itself stays authenticated via anyRequest() below, so
+                        // GraphiQL users must supply a JWT in its Headers panel.
+                        .requestMatchers("/graphiql", "/graphiql/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
