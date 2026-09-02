@@ -73,3 +73,95 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
   }
   EOF
 }
+
+resource "aws_iam_user" "taitran-local-cli" {
+  name = "taitran-local-cli"
+
+  tags = {
+    (var.local_cli_access_key_id) = "access_key_cli"
+  }
+}
+
+resource "aws_iam_policy" "ecr-push-local-cli" {
+  name   = "ecr-push-local-cli"
+  policy = <<EOF
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "ECRAuth",
+              "Effect": "Allow",
+              "Action": [
+                  "ecr:GetAuthorizationToken",
+                  "iam:ListUserPolicies",
+                  "iam:ListUsers",
+                  "iam:ListAttachedUserPolicies",
+                  "iam:GetUserPolicy",
+                  "iam:GetUser"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Sid": "ECRPush",
+              "Effect": "Allow",
+              "Action": [
+                  "ecr:BatchCheckLayerAvailability",
+                  "ecr:PutImage",
+                  "ecr:InitiateLayerUpload",
+                  "ecr:UploadLayerPart",
+                  "ecr:CompleteLayerUpload",
+                  "ecr:BatchGetImage",
+                  "ecr:DescribeRepositories",
+                  "ecr:ListTagsForResource"
+              ],
+              "Resource": [
+                  "arn:aws:ecr:ap-southeast-1:310697202929:repository/smartfinancetracker-backend",
+                  "arn:aws:ecr:ap-southeast-1:310697202929:repository/smartfinancetracker-frontend"
+              ]
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:PutRetentionPolicy"
+              ],
+              "Resource": "arn:aws:logs:ap-southeast-1:310697202929:log-group:/smartfinancetracker/ec2"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "logs:DescribeLogGroups",
+                  "logs:DescribeLogStreams",
+                  "logs:GetLogEvents",
+                  "logs:FilterLogEvents"
+              ],
+              "Resource": "arn:aws:logs:ap-southeast-1:310697202929:log-group:/smartfinancetracker/ec2:*"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "iam:ListOpenIDConnectProviders",
+                  "iam:GetOpenIDConnectProvider",
+                  "iam:GetRole",
+                  "iam:ListRolePolicies",
+                  "iam:GetRolePolicy",
+                  "iam:ListAttachedRolePolicies",
+                  "iam:GetUser",
+                  "iam:ListUserPolicies",
+                  "iam:ListUsers",
+                  "iam:GetUserPolicy",
+                  "iam:ListGroupsForUser",
+                  "iam:GetPolicy",
+                  "iam:GetPolicyVersion"
+              ],
+              "Resource": "*"
+          }
+      ]
+  }
+  EOF
+}
+
+resource "aws_iam_user_policy_attachment" "ecr-push-local-cli" {
+  policy_arn = aws_iam_policy.ecr-push-local-cli.arn
+  user       = aws_iam_user.taitran-local-cli.name
+}
