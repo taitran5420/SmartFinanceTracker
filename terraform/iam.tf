@@ -168,9 +168,22 @@ resource "aws_iam_policy" "ecr-push-local-cli" {
                   "iam:DeleteUserPolicy",
                   "iam:DetachUserPolicy",
                   "iam:PutUserPermissionsBoundary",
-                  "iam:PutUserPolicy"
+                  "iam:PutUserPolicy",
+                  "iam:ListPolicyVersions",
+                  "iam:CreatePolicyVersion",
+                  "iam:DeletePolicyVersion"
               ],
               "Resource": "*"
+          },
+          {
+              "Sid": "ProvisionerAccessKeyBootstrap",
+              "Effect": "Allow",
+              "Action": [
+                  "iam:CreateAccessKey",
+                  "iam:ListAccessKeys",
+                  "iam:DeleteAccessKey"
+              ],
+              "Resource": "arn:aws:iam::310697202929:user/terraform-provisioner"
           }
       ]
   }
@@ -327,7 +340,12 @@ resource "aws_iam_policy" "ec2-readonly-local-cli" {
                   "ec2:DescribeKeyPairs",
                   "ec2:DescribeAddresses",
                   "ec2:DescribeSubnets",
-                  "ec2:DescribeVpcs"
+                  "ec2:DescribeVpcs",
+                  "ec2:DescribeInstanceTypes",
+                  "ec2:DescribeTags",
+                  "ec2:DescribeInstanceAttribute",
+                  "ec2:DescribeVolumes",
+                  "ec2:DescribeAddressesAttribute"
               ],
               "Resource": "*"
           }
@@ -339,4 +357,89 @@ resource "aws_iam_policy" "ec2-readonly-local-cli" {
 resource "aws_iam_user_policy_attachment" "ec2-readonly-local-cli" {
   policy_arn = aws_iam_policy.ec2-readonly-local-cli.arn
   user       = aws_iam_user.taitran-local-cli.name
+}
+
+resource "aws_iam_policy" "ec2-write-local-cli" {
+  name   = "ec2-write-local-cli"
+  policy = <<EOF
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "EC2SecurityGroupWrite",
+              "Effect": "Allow",
+              "Action": [
+                  "ec2:CreateSecurityGroup",
+                  "ec2:AuthorizeSecurityGroupIngress",
+                  "ec2:AuthorizeSecurityGroupEgress"
+              ],
+              "Resource": "*"
+          },
+          {
+              "Sid": "EC2InstanceWrite",
+              "Effect": "Allow",
+              "Action": "ec2:ModifyInstanceAttribute",
+              "Resource": "*"
+          },
+          {
+              "Sid": "EC2KeyPairWrite",
+              "Effect": "Allow",
+              "Action": [
+                  "ec2:ImportKeyPair",
+                  "ec2:DeleteKeyPair"
+              ],
+              "Resource": "*"
+          }
+      ]
+  }
+  EOF
+}
+
+resource "aws_iam_user_policy_attachment" "ec2-write-local-cli" {
+  policy_arn = aws_iam_policy.ec2-write-local-cli.arn
+  user       = aws_iam_user.taitran-local-cli.name
+}
+
+resource "aws_iam_user" "terraform-provisioner" {
+  name = "terraform-provisioner"
+}
+
+resource "aws_iam_policy" "terraform-provisioner" {
+  name   = "terraform-provisioner-policy"
+  policy = <<EOF
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Sid": "EC2Full",
+              "Effect": "Allow",
+              "Action": "ec2:*",
+              "Resource": "*"
+          },
+          {
+              "Sid": "IAMFull",
+              "Effect": "Allow",
+              "Action": "iam:*",
+              "Resource": "*"
+          },
+          {
+              "Sid": "ECRFull",
+              "Effect": "Allow",
+              "Action": "ecr:*",
+              "Resource": "*"
+          },
+          {
+              "Sid": "LogsFull",
+              "Effect": "Allow",
+              "Action": "logs:*",
+              "Resource": "*"
+          }
+      ]
+  }
+  EOF
+}
+
+resource "aws_iam_user_policy_attachment" "terraform-provisioner" {
+  policy_arn = aws_iam_policy.terraform-provisioner.arn
+  user       = aws_iam_user.terraform-provisioner.name
 }
